@@ -1,0 +1,62 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# wrapper task that handles creating dest dir, deleting old versions, write meta data
+# sure would be nice if maven_artifact had a force flag, etc.
+# meant to be used on local machine as maven_artifact module rudely requires lxml
+
+- include_vars: "{{external_var_file_root_dir}}/group_vars/all"
+
+- name: "create destination {{artifact_dest_dir}} if needed"
+  file: path={{artifact_dest_dir}} state=directory
+
+- set_fact: maven_repository_url={{maven_repository_urls[artifact_repo_type]}}
+
+- name: "remove old version of {{ artifact_dest_fqn }}"
+  file: path={{artifact_dest_fqn}} state=absent
+
+
+# currently maven_artifact module not working for snapshots which needs missing maven-metadata.xml which are not generated
+- set_fact: default_artifact_classifier="jar"
+- set_fact: artifact_classifier="{{artifact_classifier_override|default(default_artifact_classifier)}}"
+
+- name: "Get release artifact g={{artifact_repo_group_id}} a={{artifact_id}} v={{artifact_target_version}} from  maven repo {{maven_repository_url}}"
+  maven_artifact:
+    artifact_id: "{{artifact_id}}"
+ #   classifier: "{{artifact_classifier}}"
+    dest: "{{artifact_dest_fqn}}"
+    repository_url: "{{maven_repository_url}}"
+    group_id: "{{artifact_repo_group_id}}"
+    version: "{{artifact_target_version}}"
+    extension: "{{artifact_extension|default(default_artifact_extension)}}"
+    username: "{{artifact_username}}"
+    password: "{{artifact_password}}"
+  register: url_result
+  retries: 25
+  until: url_result is succeeded
+  delay: 3
+  when: (artifact_repo_type.find("snapshot") == -1)
+
+# workaround for missing maven-metadata.xml
+# constructs direct URL such as
+# http://yourartifactory/artifactory/maven-dlabs-snapshot/com/dematic/labs/toolkit/helpers/simulators/1.0.4-SNAPSHOT/
+- block:
+  - set_fact: artifact_ext="{{artifact_extension|default(default_artifact_extension)}}"
+  - set_fact: artifact_url="{{maven_repository_url}}{{artifact_repo_group_id.replace('.','/') }}/{{artifact_id}}/{{artifact_target_version}}/{{artifact_id}}-{{artifact_target_version}}{{artifact_classfier_suffix}}.{{artifact_ext}}"
+  - name: "Get snapshot artifact g={{artifact_repo_group_id}} a={{artifact_id}} v={{artifact_target_version}} from  maven repo {{maven_repository_url}} with {{artifact_url}}"
+    get_url:
+      url: "{{artifact_url}}"
+      force: yes
+      dest: "{{artifact_dest_fqn}}"
+      url_username: "{{artifact_username}}"
+      url_password: "{{artifact_password}}"
+    register: url_result
+    until: url_result is succeeded
+    retries: 25
+    delay: 3
+    ignore_errors: yes
+  when: (artifact_repo_type.find("snapshot") > -1)
+
+- debug: var=url_result
+- name: "dump response to {{artifact_dest_fqn}}.meta file"
+  copy:
+    content: "{{ url_result }}"
+    dest: "{{artifact_dest_fqn}}.meta"

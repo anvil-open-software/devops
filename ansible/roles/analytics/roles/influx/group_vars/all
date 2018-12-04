@@ -1,0 +1,12 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+influxdb_base_path_default: "/data_1/influxdb"
+
+# influxdb_base_path_default: "/var/lib/influxdb"
+
+influxdb_base_path: "{{influxdb_base_path_override|default(influxdb_base_path_default)}}"
+influxdb_meta_path: "{{influxdb_base_path}}/meta"
+influxdb_data_path: "{{influxdb_base_path}}/data"
+influxdb_wal_path: "{{influxdb_base_path}}/wal"
+
+# data seeding
+influxdb_backup_path: "/data/backups/seed_data"

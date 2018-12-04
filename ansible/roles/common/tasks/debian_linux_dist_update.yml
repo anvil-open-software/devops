@@ -1,0 +1,42 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+
+  - name: "upgrade all debian or ubuntu packages"
+    apt: upgrade=dist
+
+  - name: "Run the equivalent of apt-get update as a separate step"
+    apt: update_cache=yes
+
+
+  - name: "set local time after yum update to default time zone"
+    shell: "sudo rm /etc/localtime; sudo ln -s /usr/share/zoneinfo/{{timezone|default(default_timezone)}}  /etc/localtime"
+
+  - name: "install necessary utilities like wget and unzip"
+    apt: name="{{item}}" state=latest
+    with_items:
+      - wget
+      - curl
+      - unzip
+      - psmisc
+      - libsnappy1
+      - libsnappy-dev
+    when: (ansible_distribution == 'Debian' and ansible_distribution_major_version!='9')
+
+  - name: "install necessary utilities like wget and unzip,libsnappy"
+    apt: name="{{item}}" state=latest
+    with_items:
+      - wget
+      - curl
+      - unzip
+      - psmisc
+      - libsnappy-dev
+      - libsnappy1v5
+    when: ansible_distribution == 'Ubuntu' or ansible_distribution == 'Debian' and ansible_distribution_major_version=='9'
+
+  - name: "install ntp and run service"
+    apt: name=ntp state=latest
+  # note debian is ntp service not ntpd
+  - service: name=ntp state=started enabled=yes
+
+  # todo there is some syntax problem , debug lager
+  # - include: config-ntp.yml

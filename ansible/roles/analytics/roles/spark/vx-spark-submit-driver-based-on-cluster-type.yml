@@ -1,0 +1,13 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# unfortunately ansible will print all statements as skipped and not skip the entire file
+
+- name: Run standalone cluster or YARN using DFS
+  include: vx-spark-submit-driver-checkpoint-DFS.yml
+  when: spark_execution_cluster_type=="YARN" or spark_execution_cluster_type=="SPARK_STANDALONE"
+
+- name: Experimental to check partition bug. Run standalone cluster on network file server instead of DFS
+  include: ../spark-cluster/submit-spark-standalone-cluster-driver-nfs.yml
+  when: spark_execution_cluster_type=="SPARK_STANDALONE_NFS"
+
+

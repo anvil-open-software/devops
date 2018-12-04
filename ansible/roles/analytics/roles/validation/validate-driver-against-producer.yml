@@ -1,0 +1,79 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# validate final events processed between kafka and spark/yarn
+
+# ansible-playbook -i  /dematic/git/devops-config/ansible/roles/validation/inventory/dev-cluster \
+#  validate-driver-against-producer.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+# this value is generic for any kafka topic
+- include: ../kafka/kafka-get-topic-offsets.yml
+  ignore_errors: yes
+
+# cassandra specific to driver as written to cassandra table
+- include: get-cassandra-signal-counts.yml
+
+# this value is generic for any kafka topic
+- name: "Check Spark statistic total event count"
+  include: ../yarn/validation/get_spark_event_stat_via_yarn.yml
+  vars:
+    spark_target_metric: "StreamingMetrics.streaming.totalProcessedRecords"
+    spark_driver_app_name: "{{cassandra_column_id}}"
+  ignore_errors: yes
+
+
+- name: "Validate all signal_validation producer and driver counts against kafka offest and spark stats"
+  hosts: localhost
+  vars:
+    spark_event_stats_kafka_offset_mismatch: false
+    signal_validation_producer_spark_mismatch: false
+    signal_validation_kafka_offset_mismatch: false
+    spark_driver_run_uninterrupted: true
+
+  tasks:
+    - set_fact: driver_totalProcessedRecords="{{spark_driver_statistic}}"
+    - name: "spark_event_stats_kafka_offset_mismatch does not matter if spark_driver_run_uninterrupted is not true"
+      debug: var=spark_driver_run_uninterrupted
+
+    # todo add a different test for flow like I did before SS
+    - block:
+      - set_fact: spark_event_stats_kafka_offset_mismatch=true
+      - name: "set to fail if kafka_summed_partition_offset is 0"
+         debug: msg="NO data pumped for kafka_summed_partition_offset"
+      when: (kafka_summed_partition_offset|int)<=0
+
+    - block:
+       # note driver_totalProcessedRecords is only correct if the driver is for 1 unbroken run without failover tests
+       - set_fact: spark_event_stats_kafka_offset_mismatch=true
+       - name: "set to fail if spark driver_totalProcessedRecords {{driver_totalProcessedRecords}} != kafka_summed_partition_offset {{kafka_summed_partition_offset}}"
+         debug: msg="MISMATCH"
+      when: spark_driver_run_uninterrupted and (driver_totalProcessedRecords|int)!=(kafka_summed_partition_offset|int)
+
+    - block:
+        - set_fact: signal_validation_producer_spark_mismatch=true
+        - name: "set to fail if signal validation producer count {{signal_validation_producer_final_count}} != spark count {{signal_validation_spark_final_count}}"
+          debug: msg="MISMATCH"
+      when: (signal_validation_producer_final_count|int)!=(signal_validation_spark_final_count|int)
+
+    - block:
+        - set_fact: signal_validation_kafka_offset_mismatch=true
+        - name: "set to fail if check kafka_summed_partition_offset {{kafka_summed_partition_offset}} != signal_validation_spark_final_count {{signal_validation_spark_final_count}}"
+          debug: msg="MISMATCH"
+      when: (signal_validation_producer_final_count|int)!=(kafka_summed_partition_offset|int)
+
+    - set_fact:
+        driver_run_summary:
+          run_id: "{{cassandra_column_id}}"
+          counts:
+            spark_stats_events_processed: "{{driver_totalProcessedRecords}}"
+            kafka_summed_partition_offset: "{{kafka_summed_partition_offset}}"
+            signal_validation_producer_final_count: "{{signal_validation_producer_final_count}}"
+            signal_validation_spark_final_count: "{{signal_validation_spark_final_count}}"
+            signal_validation_producer_error_count: "{{signal_validation_producer_error_count}}"
+          report_run_date: "{{ ansible_date_time.iso8601 }}"
+    # used for jenkins report regex stripping
+    - debug: msg="DRIVER RUN SUMMARY BEGIN"
+    - debug: var=driver_run_summary
+    - debug: msg="DRIVER RUN SUMMARY END"
+
+    - fail: msg="Event signal counts mismatched"
+      when: spark_event_stats_kafka_offset_mismatch or signal_validation_producer_spark_mismatch or signal_validation_kafka_offset_mismatch
+

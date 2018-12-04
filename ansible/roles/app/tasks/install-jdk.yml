@@ -1,0 +1,33 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+  - file: state=directory path={{download_folder}}
+  - file: state=absent path={{java_fqn}}
+  - file: state=absent path={{java_archive}}
+  - name: Download latest Java
+    command: "wget -q -O {{java_archive}} --no-check-certificate --no-cookies --header 'Cookie: oraclelicense=accept-securebackup-cookie' {{jdk_download_url|default(download_url_default)}} creates={{java_archive}}"
+    register: result
+  - debug: var=result
+
+  - name: Unpack archive
+    command: "tar -zxf {{java_archive}} -C {{download_folder}} creates={{java_fqn}}"
+    register: result
+  - debug: var=result
+
+  - name: Fix ownership
+    file: state=directory path={{java_fqn}} owner=root group=root recurse=yes
+
+  - name: Set Oracle JDK8 as default
+    alternatives: name=java link=/usr/bin/java path={{java_fqn}}/bin/java
+
+  - name: Add the JDK binaries to the system path (/etc/profile)
+    lineinfile : dest=/etc/profile regexp='^JAVA_HOME=' line="JAVA_HOME={{latest_java}}" state=present
+  - lineinfile : dest=/etc/profile regexp='^export.*JAVA_HOME=' line="export JAVA_HOME={{latest_java}}" state=present
+  - lineinfile : dest=/etc/profile regexp='^PATH=.*JAVA_HOME.*' line="PATH=$PATH:$HOME/bin:$JAVA_HOME/bin" state=present
+
+  - include: ../../common/tasks/update-symlink.yml
+    vars:
+      link_target_dir: "{{latest_java}}"
+      link_source_dir: "{{java_fqn}}"
+
+  - name: Remove zip file
+    file: state=absent path={{java_archive}}
+

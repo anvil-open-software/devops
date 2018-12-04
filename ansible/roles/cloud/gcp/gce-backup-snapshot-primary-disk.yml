@@ -1,0 +1,33 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# configure local machine for snapshot backup if configure_snapshot_crontab
+# run backup now if run_snapshot_script
+# ansible-playbook  -i "localhost," -c local gce-backup-snapshot-primary-disk.yml
+
+---
+- hosts: pets
+  # only pets need backup...
+  gather_facts: false
+  become: yes
+
+  vars:
+    backup_script_dir: "/opt/backup"
+  tasks:
+  - block:
+    - file: path={{backup_script_dir}} state=directory owner="devops" group="devops"
+    - name: copy snapshot.sh
+      copy: src=files/scripts/snapshot.sh dest="{{backup_script_dir}}" owner=devops group=devops mode="a+x"
+
+    - name: update cron
+      cron: name="GCE snapshot autoupdate" day="*" minute=0 hour=3
+            user="devops" job="{{backup_script_dir}}/snapshot.sh"
+            cron_file=gce-snapshot-autoupdate
+    when: configure_snapshot_crontab
+
+  - block:
+    - name: run snapshot
+      shell: "{{backup_script_dir}}/snapshot.sh"
+      register: results
+    - debug: var=results
+    when: run_snapshot_script
+

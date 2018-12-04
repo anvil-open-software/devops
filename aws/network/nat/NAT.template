@@ -1,0 +1,103 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Create NAT instance(and private routing table) for private instance access to the internet.",
+
+  "Parameters" : {
+
+    "NatSecurityGroup" : {
+      "Description" : "Target Security Group",
+      "Type" : "AWS::EC2::SecurityGroup::Id"
+    },
+
+    "KeyPairName" : {
+      "Description" : "Existing EC2 KeyPair",
+      "Type" : "AWS::EC2::KeyPair::KeyName"
+    },
+
+    "VPC" : {
+      "Description" : "Target VPC",
+      "Type": "AWS::EC2::VPC::Id"
+    },
+
+    "PublicSubnet" : {
+      "Description" : "VPC Public Subnet Id",
+      "Type" : "AWS::EC2::Subnet::Id"
+    },
+
+    "PrivateSubnet" : {
+      "Description" : "VPC private subnet id",
+      "Type" : "AWS::EC2::Subnet::Id"
+    }
+
+  },
+
+  "Mappings" : {
+    "NatRegionMap": {
+      "us-east-1": {"AMI": "ami-303b1458"},
+      "us-west-1": {"AMI": "ami-7da94839"}
+    }
+  },
+
+  "Resources" : {
+
+    "NAT" : {
+      "Type" : "AWS::EC2::Instance",
+      "Properties" : {
+        "InstanceType" : "t2.micro",
+        "KeyName"  : { "Ref" : "KeyPairName" },
+        "SourceDestCheck" : "false",
+        "ImageId" : { "Fn::FindInMap" : [ "NatRegionMap", { "Ref" : "AWS::Region" }, "AMI" ]},
+        "NetworkInterfaces" : [{
+          "GroupSet"                 : [{ "Ref" : "NatSecurityGroup" }],
+          "AssociatePublicIpAddress" : "true",
+          "DeviceIndex"              : "0",
+          "DeleteOnTermination"      : "true",
+          "SubnetId"                 : { "Ref" : "PublicSubnet" }
+        }],
+        "Tags" : [
+          { "Key" : "Name", "Value" : "NAT" }
+        ]
+      }
+    },
+
+    "PrivateRouteTable" : {
+      "Type" : "AWS::EC2::RouteTable",
+      "Properties" : {
+        "VpcId" : { "Ref" : "VPC" },
+        "Tags" : [
+          { "Key" : "Application", "Value" : { "Ref" : "AWS::StackName" } },
+          { "Key" : "Network", "Value" : "Private" }
+        ]
+      }
+    },
+
+    "PrivateSubnetRouteTableAssociation" : {
+      "DependsOn" : ["PrivateRouteTable"],
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "SubnetId" : { "Ref" : "PrivateSubnet" },
+        "RouteTableId" : { "Ref" : "PrivateRouteTable" }
+      }
+    },
+
+    "PrivateRouteToNAT" : {
+      "DependsOn" : ["NAT"],
+      "Type" : "AWS::EC2::Route",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "PrivateRouteTable" },
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "InstanceId" : { "Ref" : "NAT" }
+      }
+    }
+
+  },
+
+  "Outputs" : {
+    "NATIP" : {
+      "Description" : "NAT IP address",
+      "Value" : { "Fn::GetAtt" : [ "NAT", "PublicIp" ] }
+    }
+  }
+
+}

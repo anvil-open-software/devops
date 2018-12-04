@@ -1,0 +1,28 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+   # stop ec2 instances based on cluster tag filter criteria from jenkins.
+   # send in from jenkins:  cluster_tag and cluster_name
+
+  vars:
+    filter_parms: "--filters Name=instance-state-name,Values=running Name=tag:{{cluster_tag}},Values={{cluster_name}}"
+    ec2_find_instancid_cmd:  "{{ec2_describe_cmd}} --query '{{ec2_field_instanceid}}'  {{filter_parms}}"
+
+  tasks:
+    - debug: msg="{{ec2_find_instancid_cmd}}"
+    - name: Get all ec2 instance ids with matching cluster id
+      local_action: command {{ec2_find_instancid_cmd}}
+      register: result
+      
+    - block:
+      - set_fact: instanceids="{{result.stdout_lines}}"
+      - debug: var="{{instanceids}}"
+      - name: stop EC2 instances matching filter
+        ec2:
+          state: 'stopped'
+          instance_ids: "{{ instanceids }}"
+          region: "{{ region }}"
+      when: result.stdout is defined and (result.stdout|length > 5)

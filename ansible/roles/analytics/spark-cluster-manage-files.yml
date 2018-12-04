@@ -1,0 +1,15 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: spark
+
+  tasks:
+    - name: clean up work and log directory
+      file: path={{spark_work_dir}} state=absent
+      when: (spark_clean_work_files is defined) and (spark_clean_work_files=="true")
+    - file: path={{spark_work_dir}} state=directory
+
+      # rm for whatever reason did not work
+      # command: "rm -rf {{spark_work_dir}}/*"
+    - file: path={{spark_logs_dir}} state=absent
+      when: (spark_clean_log_files is defined) and (spark_clean_log_files=="true")
+    - file: path={{spark_logs_dir}} state=directory

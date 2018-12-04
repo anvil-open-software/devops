@@ -1,0 +1,10 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# sleep wait_before_kill_duration_in_minutes then compute the second_run_duration lengthfrom overall
+
+- name: "sleep {{wait_before_kill_duration_in_minutes}} minutes"
+  pause: minutes="{{wait_before_kill_duration_in_minutes}}"
+  when: (wait_before_kill_duration_in_minutes|int) >0
+
+- set_fact: second_run_duration={{ ((run_duration_in_minutes|int)-(wait_before_kill_duration_in_minutes|int))|int + (producer_winddown_delay_minutes|int) }}
+- debug: var=second_run_duration

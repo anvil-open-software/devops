@@ -1,0 +1,1 @@
+files specific to spark standalone mode as not to clash with spark use inside YARN.

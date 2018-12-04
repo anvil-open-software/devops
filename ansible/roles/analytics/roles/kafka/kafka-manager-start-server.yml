@@ -1,0 +1,49 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# ansible-playbook -i ../../../../test/inventory/kafka-centos  --skip-tags "kafka-manager-start" kafka-manager-start-server.yml --private-key /dematic/keys/devops.pem -u kafka
+
+- name: "Start yahoo kafka-manager UI on zookeeper node"
+  hosts: zookeeper-nodes
+  become: no
+  vars:
+    - kafka_mgr_launch_cmd: "{{kafka_manager_dir}}/bin/kafka-manager \
+                             -Dkafka-manager.zkhosts={{kafka_zookeeper_connection}} \
+                             -Djava.net.preferIPv4Stack=true \
+                             -Duser.timezone={{kafka_user_timezone}}"
+    - kafka_mgr_shutdown_cmd: "ps ax | grep -i 'kafka-manager' | grep java | grep -v grep | awk '{print $1}' | xargs kill -SIGKILL"
+
+  tasks:
+    - block:
+        - name:  Stop kafka-manager with SIGKILL
+          shell: "{{kafka_mgr_shutdown_cmd}}"
+          ignore_errors: yes
+
+        - name: "remove {{kafka_manager_dir}}/RUNNING_PID file"
+          file: path="{{kafka_manager_dir}}/RUNNING_PID" state=absent
+          become: yes
+          ignore_errors: yes
+
+    - block:
+        - shell: "(nohup {{kafka_mgr_launch_cmd}} > /tmp/kafka-manager.log )&"
+          register: launch_results
+        # we dump message here in case there were warnings...
+        - debug: msg="{{launch_results}}"
+        # kafka script does NOT fail with return code even when it did not launch, but returns stderr.
+        - fail: msg="fail when stderr is not null {{launch_results.stderr}}"
+          when: launch_results.stderr is defined and (launch_results.stderr|length > 0)
+
+        - name: "Wait until kafka-manager has successfully deployed"
+          # todo convert to uri later, somehow not working..
+          local_action: command curl --head --silent "http://{{ kafka_mgr_host }}:9000"
+          register: result
+          until: result.stdout.find("200 OK") != -1
+          retries: "12"
+          delay: "10"
+      tags:
+        - kafka-manager-start
+
+- name: "Create default attached kafka cluster"
+  hosts: localhost
+  become: no
+  tasks:
+    # note we have this separate from above so we run locally and don't need to install httplib2 on host
+    - include: tasks/kafka-manager-create-cluster.yml

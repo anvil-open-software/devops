@@ -1,0 +1,9 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# just test file that will be cuat and pasted into ansible-vault edit.
+password_text: |
+  # all text must be indented two spaces
+  # we use YML with a pipe so we don't have to explicitly call ansible vault decrypt
+  com.dematic.labs.picketlink.defaultPassword=abcd1234
+
+  # test extra dummy variable and space inclusion
+  com.dematic.labs.test=hello123

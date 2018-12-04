@@ -1,0 +1,21 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# create a linux user with public ssh keys
+
+# must pass in local_public_ssh_key_file
+
+# send in user_local_public_ssh_key_file if you want to override it...
+- set_fact: local_public_ssh_key_file={{user_local_public_ssh_key_file|default("/data/ansible/devops/.ssh/devops.pub")}}
+- name: "create group {{target_user}}"
+  group: name={{target_user}} state=present
+
+- name: "create or update user {{target_user}} with default bash shell"
+  user:  name={{target_user}} createhome=true groups="{{target_user}},wheel" shell="/bin/bash"
+- authorized_key:
+    user: "{{target_user}}"
+    key: "{{ lookup('file','{{local_public_ssh_key_file}}') }}"
+    exclusive: no
+  register: result
+
+# DO NOT print any logs so private key is not exposed
+#- debug: var=result
+

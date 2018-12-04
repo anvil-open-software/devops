@@ -1,0 +1,33 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+# to run locally:
+# ansible-playbook -i /dematic/gitazure/devops-config/ansible/roles/kafka/inventory/kafka-devops-cluster -c local  machine-cluster-start.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+
+ # start machine instances based on cluster tag filter criteria. will wait if any of them are in stopped state.
+ # caller inputs:
+ # cluster_tag and cluster_name
+
+ # actual cli   is using something like:
+#  az resource list --tag "kafka-cluster-id=devops" --query "[?type=='Microsoft.Compute/virtualMachines'].id" -o tsv
+##
+  vars:
+    az_vm_start_cmd_by_id: "az vm start --ids"
+  tasks:
+    - name: "Get all instance names with matching {{cluster_tag}}={{cluster_name}}"
+      shell: az resource list --tag "{{cluster_tag}}={{cluster_name}}" --query "[?type=='Microsoft.Compute/virtualMachines'].id" -o tsv
+      register: result
+    - set_fact: instanceids="{{result.stdout|replace('\n', ' ')}}"
+
+    - name: "Following vms will be started with command"
+      debug: msg="{{az_vm_start_cmd_by_id}} {{ instanceids }}"
+
+    - name: Start machine instances matching filter. Note cloud api waits until machines are fully started.
+      shell: "{{az_vm_start_cmd_by_id}} {{instanceids}}"
+      register: result
+
+    - debug: var=result

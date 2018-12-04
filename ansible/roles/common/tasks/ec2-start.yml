@@ -1,0 +1,32 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+- name: Start ec2 instance(s)
+  hosts: localhost
+  gather_facts: false
+  connection: local
+  # runs locally since it's launching instances
+  vars:
+    #  parameterized from jenkins
+    instance_ids:
+      - "{{ IQPOC_TARGET_EC2_INSTANCE_ID }}"
+    # Jenkins is not correctly propagating user parameters so we set it as part of the inventory variable
+    #  - "{{ lookup('env', 'IQPOC_TARGET_EC2_INSTANCE_ID') }}"
+    region: us-east-1
+
+  tasks:
+    - name: List all local environment variables
+      local_action: command env
+      register: env_variables
+      when: debug.level is defined
+    - debug: var=env_variables
+      when: debug.level is defined
+    - debug: msg="Instance(s) = {{ instance_ids }}"
+
+    - name: Start instance(s). Does nothing if already up.
+      ec2:
+        instance_ids: '{{ instance_ids }}'
+        region: '{{ region }}'
+        state: running
+        wait: True
+
+    - name: Wait for SSH to come up
+      wait_for: host="{{ target_ip_address }}" port=22 delay=30 timeout=400 state=started

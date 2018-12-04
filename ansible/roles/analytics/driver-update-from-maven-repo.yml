@@ -1,0 +1,82 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+
+# update specific driver jar based on {{spark_driver_key}} from passed in {{spark_driver_conf_file}}
+# note: this currently runs to all members of the node-
+#         this is not necessary for YARN which copies the launcher jar into HDFS
+#         but was for Spark standalone which did not have a shared network drive.
+#
+#  ansible-playbook -i ../../test/inventory/artifactory-driver-test driver-update-from-maven-repo.yml --private-key /dematic/keys/google/gcp-devops -u spark
+
+# previous nexus version had more meta information
+- name: first get artifacts locally from repo
+  hosts: localhost
+  tasks:
+    - debug:  msg="reading driver registry from {{spark_driver_conf_file}}"
+    - include_vars: "{{spark_driver_conf_file}}"
+    - set_fact: spark_driver_target={{spark_drivers_dict[spark_driver_key]}}
+    - debug: var=spark_driver_target
+
+    - block:
+        - name: "spark_driver_target.driver_classifier_suffix will override top level driver_classifier_suffix "
+          set_fact: driver_classifier_suffix_override="{{spark_driver_target.driver_classifier_suffix}}"
+        - debug: var=driver_classifier_suffix_override
+      when: spark_driver_target.driver_classifier_suffix is defined
+
+    - set_fact: artifact_repo_group_id_default="{{artifact_repo_group_id}}"
+    - block:
+        - name: "spark_driver_target.artifact_repo_group_id will override top level artifact_repo_group_id "
+          set_fact: artifact_repo_group_id_override="{{spark_driver_target.artifact_repo_group_id}}"
+        - debug: var=artifact_repo_group_id_override
+      when: spark_driver_target.artifact_repo_group_id is defined
+
+
+    - name: "Get target driver artifact {{spark_driver_key}} from maven repo"
+      include: ../repo/tasks/download-artifact-from-maven-repo.yml
+      vars:
+        artifact_owner: spark d
+        artifact_repo_group_id: "{{artifact_repo_group_id_override|default(artifact_repo_group_id_default)}}"
+        artifact_id: "{{spark_driver_target.module}}"
+        artifact_dest_dir:  "{{local_artifact_location}}"
+        artifact_target_version: "{{repo_target_version|default(repo_target_version_default)}}"
+        artifact_dest_fqn: "{{local_artifact_location}}/{{spark_driver_target.jar}}"
+        # need this workaround until https://github.com/ansible/ansible-modules-extras/issues/2139
+        artifact_classfier_suffix: "{{driver_classifier_suffix_override|default(driver_classifier_suffix)}}"
+
+    - name: "Get monitor jar from maven repo"
+      include: ../repo/tasks/download-artifact-from-maven-repo.yml
+      vars:
+        artifact_owner: spark
+        artifact_repo_group_id: "{{monitor_artifact.artifact_repo_group_id}}"
+        artifact_id: "{{monitor_artifact.artifact_id}}"
+        artifact_dest_dir:  "{{local_artifact_location}}"
+        artifact_target_version: "{{monitor_artifact.monitor_target_version}}"
+        artifact_repo_type: "{{monitor_artifact.artifact_repo_type}}"
+        artifact_dest_fqn: "{{local_artifact_location}}/{{monitor_artifact.monitor_jar}}"
+        artifact_classfier_suffix: ""
+
+# distribute to clients
+- name: "Copy over jar file to clients"
+  hosts: spark
+  become: yes
+  vars:
+    artifact_owner: spark
+  tasks:
+    - include_vars: "{{spark_driver_conf_file}}"
+    - set_fact: spark_driver_target={{spark_drivers_dict[spark_driver_key]}}
+    - debug: var=spark_driver_target
+
+    - name: "create destination {{spark_driver_location}}  if needed"
+      file: path={{spark_driver_location}} state=directory owner={{artifact_owner}}
+    - name: "copy over artifacts from local"
+      copy:
+        src: "{{local_artifact_location}}/{{item}}"
+        dest: "{{spark_driver_location}}/{{item}}"
+        owner: "{{artifact_owner}}"
+        group: "{{artifact_owner}}"
+      with_items:
+        - "{{spark_driver_target.jar}}"
+        - "{{spark_driver_target.jar}}.meta"
+        - "{{monitor_artifact.monitor_jar}}"
+        - "{{monitor_artifact.monitor_jar}}.meta"
+

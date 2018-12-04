@@ -1,0 +1,19 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+##
+# Delete elasticache cluster
+##
+
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars:
+
+  tasks:
+    - name: delete elasticache
+      elasticache:
+        name: "{{redis_name}}"
+        state: absent
+        region: "{{redis_aws_region}}"
+        wait: yes

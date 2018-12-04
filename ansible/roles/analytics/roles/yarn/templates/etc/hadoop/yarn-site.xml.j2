@@ -1,0 +1,116 @@
+<?xml version="1.0"?>
+<!--
+Stored under $HADOOP_HOME/etc/hadoop during run time.
+
+  see settings  https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-common/yarn-default.xml
+
+Please note many of these settings are optimized for testing and NOT necessarily production.
+Some initial settings taken from
+http://codiply.com/blog/hadoop-2-6-0-cluster-setup-on-ubuntu-14-04
+
+-->
+<configuration>
+
+    <property>
+        <name>yarn.resourcemanager.hostname</name>
+        <value>{{cluster_master_name}}</value>
+        <description>The hostname which is registered in /etc/hosts</description>
+    </property>
+    <property>
+        <name>yarn.resourcemanager.scheduler.address</name>
+        <value>{{cluster_master_name}}:8030</value>
+    </property>
+    <property>
+        <name>yarn.resourcemanager.resource-tracker.address</name>
+        <value>{{cluster_master_name}}:8031</value>
+    </property>
+    <property>
+        <name>yarn.resourcemanager.address</name>
+        <value>{{cluster_master_name}}:8032</value>
+    </property>
+    <property>
+        <name>yarn.resourcemanager.admin.address</name>
+        <value>{{cluster_master_name}}:8033</value>
+    </property>
+    <property>
+        <name>yarn.resourcemanager.webapp.address</name>
+        <value>{{cluster_master_name}}:8088</value>
+    </property>
+
+    <property>
+        <name>yarn.nodemanager.hostname</name>
+        <value>{{inventory_hostname}}</value>
+    </property>
+
+    <!-- the default changed from 32 to 4 in Hadoop 2.8
+          this value limits the size of executors assigned to a spark driver. I.e. default of 4 means
+           a spark driver -executor-cores cannot exceed 4. It should not be more than 6 for jvm efficiency -->
+    <property>
+        <name>yarn.scheduler.maximum-allocation-vcores</name>
+        <value>8</value>
+    </property>
+
+    <property>
+        <name>yarn.nodemanager.resource.cpu-vcores</name>
+        <value>{{nproc_multiplied.stdout | int}}</value>
+    </property>
+
+    <!-- by default this is 8192/8GB -->
+    <property>
+        <name>yarn.scheduler.maximum-allocation-mb</name>
+        <value>32000</value>
+    </property>
+
+    <property>ss-test-uninterrupted-run-validate-final-count.yml
+        <name>yarn.nodemanager.resource.memory-mb</name>
+        <value>{{mem_total.stdout | int}}</value>
+    </property>
+
+    <!-- default is 2, we set it artificially higher mostly for testing but this can be changed
+         by driver launch spark.yarn.maxAppAttempts -->
+    <property>
+        <name>yarn.resourcemanager.am.max-attempts</name>
+        <value>4</value>
+    </property>
+
+    <!--
+       http://hortonworks.com/blog/apache-hadoop-yarn-resilience-hadoop-yarn-applications-across-resourcemanager-restart-phase-1/
+       yarn.resourcemanager.recovery.enabled
+    -->
+
+    <!-- Check liveness of node manager a little more frequently -->
+    <property>
+        <name>yarn.nm.liveness-monitor.expiry-interval-ms</name>
+        <value>60000</value>
+    </property>
+
+    <property>
+        <name>yarn.resourcemanager.container.liveness-monitor.interval-ms</name>
+        <value>30000</value>
+    </property>
+
+  <!-- Unnaturally high retention rate user log 10 days for debugging. Should be shorter in prod -->
+    <property>
+        <name>yarn.nodemanager.log.retain-seconds</name>
+        <value>864000</value>
+    </property>
+
+    <!--
+    <property>
+        <name>yarn.nodemanager.pmem-check-enabled</name>
+        <value>false</value>
+    </property>
+    -->
+
+    <property>
+        <name>yarn.nodemanager.vmem-check-enabled</name>
+        <value>false</value>
+    </property>
+
+    <!-- empty template
+    <property>
+        <name></name>
+        <value></value>
+    </property>
+     -->
+</configuration>

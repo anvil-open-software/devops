@@ -1,0 +1,32 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# Delete dynamo table prefixed by dynamodb_prefix for a specific driver
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+  vars:
+    ignoreTable: "perftest"
+    # todo need to have an array of permanent tables...
+
+  # must send in prefix, will fail if prefix is not more than 4 characters
+  tasks:
+    - set_fact: prefixlenth={{table_prefix|length}}
+    - debug: msg="Length {{prefixlenth}}"
+    - fail: msg="prefix MUST be greater than 3 letters"
+      when: "{{prefixlenth}} < 3"
+
+    - name: Get matching dynamo tables
+      local_action: command aws dynamodb list-tables --output text --region {{aws_region}}
+      register: table_results
+    - set_fact: dynamodb="{{ table_results.stdout_lines}}"
+    - debug: var=dynamodb
+
+    # in ansible 2.0 dynamodb module is supported but for now hand craft...
+    - name: Delete matching dynamo tables
+      #debug: msg="Deleting table {{item|regex_replace('^TABLENAMES\t')}}"
+      local_action: command aws dynamodb delete-table --region {{aws_region}}  --table-name {{item|regex_replace('^TABLENAMES\t')}}
+      when: "{{item.find(table_prefix)}} > -1  and {{item.find(ignoreTable)}}==-1"
+      with_items: dynamodb
+      register: delete_results
+
+    - debug: msg="{{delete_results}}"

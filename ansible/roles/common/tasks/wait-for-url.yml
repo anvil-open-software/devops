@@ -1,0 +1,15 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+- name: Wait for an endpoint to be available
+  hosts: all
+  gather_facts: false
+  vars:
+    wait_url: "http://{{ inventory_hostname }}:8080/"
+    wait_retries: 30
+    wait_delay: 10
+  tasks:
+    - name: Wait until service is available in case the instance was just started
+      local_action: command curl --head --silent {{wait_url}}
+      register: result
+      until: result.stdout.find("200 OK") != -1
+      retries: "{{wait_retries}}"
+      delay: "{{wait_delay}}"

@@ -1,0 +1,71 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+ ###
+ ### use with DFS
+ # local testing
+ # ansible-playbook -i /dematic/gitlab/devops-config/ansible/roles/spark/inventory/spark-devops submit-spark-standalone-cluster-driver.yml --private-key /dematic/keys/google/gcp-devops -u spark
+
+
+
+- name: cleanup checkpoints on local file system delete_checkpoint_dir is true
+  hosts: spark-all
+  become: yes
+  vars:
+    shared_nfs_base: "/data/shared"
+    spark_checkpoint_base_dir: "{{shared_nfs_base}}/checkpoints"
+    driver_checkpoint__dir: "{{spark_checkpoint_base_dir}}/{{spark_driver_key}}"
+
+    
+  tasks:
+    - include_vars: ../spark/group_vars/spark
+    - name: "make sure nfs-common installed"
+      apt: name=nfs-common state=installed
+    - block:
+     # mount could be done as aprt of the cluster start.
+     # however it's here since NFS option might be temporary and I want to limit changes to cluster setup
+      - file: path="{{shared_nfs_base}}" state=directory
+      - name: "nfs mount to {{nfs_server}}"
+        mount:
+          name: "{{shared_nfs_base}}"
+          src: "{{nfs_server}}:/data"
+          fstype: nfs
+          opts: noatime
+          state: mounted
+
+      # todo fill out checkpoints to launch key to support multiple of same  driver launch
+      # {{spark_driver_key}}/{{spark_checkpoint_launch_key}}
+
+      when: delete_checkpoint_dir
+      tags:
+        - delete_checkpoint_dir
+
+- name:  set shared directory from one machine clean up once working
+  hosts: spark
+  become: yes
+  vars:
+    shared_nfs_base: "/data/shared"
+    spark_checkpoint_base_dir: "{{shared_nfs_base}}/checkpoints"
+    spark_checkpoint_base_dir: "{{shared_nfs_base}}/checkpoints"
+    driver_checkpoint__dir: "{{spark_checkpoint_base_dir}}/{{spark_driver_key}}"
+  tasks:
+    - block:
+      - name: "clean up checkpoint dirs driver_checkpoint__dir"
+        file: path="{{driver_checkpoint__dir}}" state=absent
+      - include_vars: ../spark/group_vars/spark
+      - file: path="{{driver_checkpoint__dir}}" state=directory mode="a+rw"
+      when: delete_checkpoint_dir
+      tags:
+        - delete_checkpoint_dir
+
+# always append file:/// url prefix as default it DFS location
+# shared_nfs_base not available in spark play
+- name: "submit driver for target version {{spark_default_version}}"
+  include: ../spark/vx-spark-submit-driver.yml spark_target_version_dir="{{spark_base}}/{{spark_default_version}}" \
+      checkpoint_driver_dir="file:///{{shared_nfs_base}}/checkpoints/{{spark_driver_key}}" \
+      spark_submit_mode="--master spark://{{cluster_master_ip}}:{{spark_master_port}} --deploy-mode {{spark_deploy_mode|default(spark_default_deploy_mode)}} " \
+      shared_nfs_base="/data/shared"
+
+
+
+
+

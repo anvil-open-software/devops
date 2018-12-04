@@ -1,0 +1,41 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# To run locally
+# ansible-playbook -i /dematic/gitlab/devops-config/ansible/roles/spark/inventory/spark-devops restart-spark-cluster-all.yml --private-key /dematic/keys/google/gcp-devops -u spark --tags wait_for_spark_master_ui
+
+- name: "Spark master"
+  hosts: spark-master
+  become: true
+  become_user: spark
+  tasks:
+    # could use start-all.sh but do it separately so if master fails, just fail.
+    - block:
+      - name: "Start spark-master with start-master.sh"
+        shell: "{{spark_latest}}/sbin/start-master.sh"
+        register: results
+      - debug: var=results
+      - name: Fail when submit response failed to launch
+        fail: var=results
+        when: (results is defined) and (results.stdout.find('failed to launch') > -1)
+      tags:
+        - start-spark-master
+
+    - name: "Wait until master UI {{spark_ui_url}} has successfully deployed"
+      uri:
+        url: "{{spark_ui_url}}"
+      register: result
+      until: result is defined and result.status == 200
+      retries: 90
+      delay: 1
+      tags:
+       - wait_for_spark_master_ui
+    - debug: var=result
+
+    - block:
+      - name: "Start spark slaves with start-slaves.sh slaves listed in conf/slaves "
+        shell: "{{spark_latest}}/sbin/start-slaves.sh "
+        register: results
+      - debug: var=results
+      tags:
+        - start-spark-slaves
+
+    # todo validate slaves all in

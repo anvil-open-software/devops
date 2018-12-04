@@ -1,0 +1,35 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: cassandra
+#
+# 1. create keyspace: set create_keyspace="true"
+# 2. drop keyspace : set drop_keyspace="true"
+# 3. drop keyspace before creating keyspace
+#
+# to run locally:
+# ansible-playbook -i ../../../../test/inventory/cassandra manage-keyspace.yml --private-key /dematic/keys/devops.pem -u spark
+
+  vars:
+    cassandra_creds:  "-u {{cassandra_app_user}} -p {{cassandra_app_password}}"
+
+  tasks:
+
+    - include: tasks/debug_keyspaces.yml
+
+    - name: drop keyspace first if requested
+      shell: cqlsh {{cassandra_host}} {{cassandra_creds}} -e "drop keyspace IF EXISTS {{keyspace_id}};"
+      when: drop_keyspace is defined and drop_keyspace=="true"
+
+    - include: tasks/debug_keyspaces.yml
+
+    - name: create keyspace
+      # cannot parameterize command as there is a lot of embedded quotes
+      # create keyspace heji with replication = {'class':'SimpleStrategy', 'replication_factor' : 3};
+      shell: cqlsh {{cassandra_host}} {{cassandra_creds}} -e \
+              "CREATE KEYSPACE {{keyspace_id}} WITH replication = {'class':'SimpleStrategy','replication_factor':{{replication_factor|default(default_replication_factor)}}};"
+      when: create_keyspace is defined and create_keyspace=="true"
+
+    - name: list space attributes
+      shell: cqlsh {{cassandra_host}} {{cassandra_creds}} -e "describe keyspace {{keyspace_id}};"
+      register: results
+    - debug: var=results.stdout_lines

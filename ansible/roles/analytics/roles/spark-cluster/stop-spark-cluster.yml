@@ -1,0 +1,45 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+
+# stop spark cluster jvms by hook or crook
+# to run locally:
+# ansible-playbook -i /dematic/gitlab/devops-config/ansible/roles/spark/inventory/spark-devops stop-spark-cluster.yml --private-key /dematic/keys/google/gcp-devops -u spark
+
+- name: "Stop spark cluster politely with shipped scripts, works only half the time"
+  hosts: spark-master
+  vars:
+    # used to test and debug the force kill portion since stop-all.sh failure is intermittent
+    kill_spark_politely: true
+  tasks:
+    - name: "STOP Spark cluster master and slaves in conf/slaves"
+      shell: "echo"
+      #shell: "{{spark_latest}}/sbin/stop-all.sh"
+      register: results
+      when: kill_spark_politely
+    - debug: var=results
+
+- name: "Stop spark cluster by brute force kill -9"
+  hosts: spark-slaves
+  tasks:
+    - name: "Find slaves with {{spark_kill_cmd}} that are not dead"
+      shell: "{{spark_pid_cmd}}"
+      register: pid_results
+    - debug: var=pid_results
+    - block:
+      - shell: "{{spark_kill_cmd}}"
+        register: results
+      - debug: var=results
+      when: pid_results is defined and pid_results.stdout != ""
+
+- name: "Stop spark master by brute force kill -9"
+  hosts: spark-master
+  tasks:
+    - name: "Find master with {{spark_kill_cmd}} that is not dead"
+      shell: "{{spark_pid_cmd}}"
+      register: pid_results
+    - debug: var=pid_results
+    - block:
+      - shell: "{{spark_kill_cmd}}"
+        register: results
+      - debug: var=results
+      when: pid_results is defined and pid_results.stdout != ""

@@ -1,0 +1,33 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# kill process identified by jvm_class_name/spark_class_name running on machine
+
+- set_fact: jps_command="/opt/jdk_latest/bin/jps"
+- name: show what is running on the machine
+  shell: "{{jps_command}}  -mlv"
+  register: result
+- debug: var=result
+
+- name: get process id of jvm {{jvm_class_name}}
+  shell: "{{jps_command}}  -mlv | grep '{{jvm_class_name}}' | grep '{{spark_class_name}}' | awk '{ print $1 }'"
+  register: result
+- debug: var=result
+
+- set_fact: jvm_process_id="{{result.stdout}}"
+  when: result.stdout != ""
+
+- block:
+  - name:  "kill jvm process {{jvm_process_id}}"
+    shell: "kill -9 {{jvm_process_id}}"
+    register: result
+  - debug: var=result
+
+  - name: make sure {{jvm_process_id}} is dead
+    shell: "{{jps_command}}  -l | grep '{{jvm_process_id}}'  | awk '{ print $1 }'"
+    register: result
+  - debug: var=result
+
+  - name: "fail if jps returns processid"
+    fail: msg= "{{result.stdout}}"
+    when: result.stdout != ""
+
+  when: jvm_process_id is defined

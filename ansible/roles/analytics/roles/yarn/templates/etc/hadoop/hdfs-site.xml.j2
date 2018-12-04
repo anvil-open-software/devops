@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <!--
+    see settings  https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-common/yarn-default.xml
+    <property>
+        <name>dfs.replication</name>
+        <value>2</value>
+    </property>
+    -->
+
+   <!-- we only use HDFS to store spark driver state which is highly volatile and 3 is overkill-->
+    <property>
+        <name>dfs.replication</name>
+        <value>{{hdfs_replication_override| default(2)}}</value>
+    </property>
+
+    <!-- unnaturally small 10MB block size since we are using HDFS for checkpointing -->
+    <property>
+        <name>dfs.block.size</name>
+        <value>10485760</value>
+    </property>
+
+    <!-- in cloud environment, ip addresses are more flexible and is not impacted by DNS lookup failure. DNS names are as reliable. With the
+    below setting I could get Hadoop to work with IP addresses only, but could not get YARN to work-->
+    <property>
+        <name>dfs.namenode.datanode.registration.ip-hostname-check</name>
+        <value>false</value>
+    </property>
+
+    <!-- default is false but somehow all the UI's point to hostname not I.P.-->
+    <property>
+        <name>dfs.client.use.datanode.hostname</name>
+        <value>false</value>
+    </property>
+
+    <property>
+        <name>dfs.datanode.use.datanode.hostname</name>
+        <value>false</value>
+    </property>
+
+    <property>
+        <name>dfs.namenode.invalidate.work.pct.per.iteration</name>
+        <value>1.0f</value>
+    </property>
+
+
+</configuration>

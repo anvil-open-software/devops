@@ -1,0 +1,43 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+   # start ec2 instances based on IP address
+   # send in from jenkins:  target_addresses
+   # supports multiple
+
+   # actual ec2 command is using something like:
+   # aws ec2 describe-instances --output text --region us-east-1
+   #    --query 'Reservations[*].Instances[*].{ID:InstanceId,IP:NetworkInterfaces[*].PrivateIpAddresses[*].PrivateIpAddress}'
+   #   --filter Name=private-ip-address,Values=10.x.x.x,10.x.x.x
+
+  vars:
+
+    ec2_instanceid_cmd:  "{{ec2_describe_cmd}} --query '{{ec2_field_instanceid}}'  {{filter_parms}}"
+    start_ec2: true
+
+  tasks:
+    - set_fact: filter_name="private-ip-address"
+      when: region == "us-east-1"
+    - set_fact: filter_name="network-interface.addresses.association.public-ip"
+      when: region != "us-east-1"
+    - set_fact: filter_parms='--filter Name={{filter_name}},Values={{target_addresses}}'
+
+    - debug: msg="{{ec2_instanceid_cmd}}"
+    - name: Get all ec2 instance ids with matching cluster id
+      local_action: command {{ec2_instanceid_cmd}}
+      register: result
+    - set_fact: instanceids="{{ result.stdout_lines}}"
+
+    - name: Echo instance ids
+      debug: msg="{{ item }}"
+      with_items: '{{ instanceids }}'
+
+    - name: stop EC2 instances matching filter
+      ec2:
+        state: 'stopped'
+        instance_ids: "{{ instanceids }}"
+        region: "{{ region }}"
+      when: result.stdout is defined and (result.stdout|length > 5)

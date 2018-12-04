@@ -1,0 +1,45 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# stop machine instances based on cluster tag filter criteria. will wait if any of them are in stopped state.
+# caller inputs:
+# cluster_tag and cluster_name
+
+# to run locally:
+# ansible-playbook -i /dematic/gitazure/devops-config/ansible/roles/kafka/inventory/kafka-devops-cluster -c local  machine-cluster-stop-async.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars:
+    az_vm_stop_cmd_by_id: "az vm stop --ids"
+  tasks:
+    - name: "Get all instance names with matching {{cluster_tag}}={{cluster_name}}"
+      shell: az resource list --tag "{{cluster_tag}}={{cluster_name}}" --query "[?type=='Microsoft.Compute/virtualMachines'].id" -o tsv
+      register: result
+    - set_fact: instanceids="{{result.stdout.split('\n')}}"
+
+    - name: "Stop machine instance individually and asynchronously since cli does it it sequence"
+      shell: "{{az_vm_stop_cmd_by_id}} {{item}}"
+      with_items: "{{instanceids}}"
+      async: "{{async_task_completion_seconds}}"
+      poll: 0
+      register: async_results
+
+    - name: "Check async results"
+      include: tasks/check-async-results.yml status_test_retries=300
+
+    - block:
+      - name: "Deallocate machine instance individually and asynchronously since cli does it it sequence"
+        shell: "az vm deallocate --ids {{item}}"
+        with_items: "{{instanceids}}"
+        async: "{{async_task_completion_seconds}}"
+        poll: 0
+        register: async_results
+
+      - name: Check sync status
+        include: tasks/check-async-results.yml status_test_retries=300
+      when: azure_deallocate_vm
+
+

@@ -1,0 +1,14 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+- name: "clean up log directories {{spark_log_dir}}"
+  file: path="{{spark_log_dir}}" state=absent
+  when: clean_log_files
+- file: path={{spark_log_dir}} state=directory owner=spark
+
+- name: "clean up work directories {{spark_work_dir}}"
+  file: path="{{spark_work_dir}}" state=absent
+- file: path={{spark_work_dir}} state=directory owner=spark
+
+- name: "clean up checkpoint directories {{spark_checkpoint_dir}}"
+  file: path="{{spark_checkpoint_dir}}" state=absent
+- file: path={{spark_checkpoint_dir}} state=directory owner=spark

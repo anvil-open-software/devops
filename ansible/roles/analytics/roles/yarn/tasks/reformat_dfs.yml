@@ -1,0 +1,9 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+  # Start HDFS empty each time avoiding block corruption issues from shutdown
+
+
+- block:
+  - name: Format namenode before cluster can be started
+    shell: "{{hadoop_bin}}/hdfs namenode -format"
+    register: result
+  - debug: var=result

@@ -1,0 +1,21 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+  # Test if kinesis streams are open.
+  # Might have to add an exemption in the future
+
+  vars:
+    kinesis_list_cmd : "aws kinesis list-streams --output text --region {{region}}"
+
+  tasks:
+    - debug: msg="{{kinesis_list_cmd}}"
+    - name: Query if streams are open
+      command: "{{kinesis_list_cmd}}"
+      register: result
+
+    - name: fail if any streams exist
+      fail: msg="The following kinesis streams are open -  {{result.stdout}}"
+      when: (result.stdout.find('STREAMNAMES') > -1)

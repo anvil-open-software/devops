@@ -1,0 +1,38 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+# to run locally:
+# ansible-playbook -i /dematic/gitlab/devops-config/ansible/roles/spark/inventory/spark-devops restart-spark-cluster-all.yml --private-key /dematic/keys/google/gcp-devops -u spark
+
+# Restart Spark cluster
+
+- name: "Stop spark"
+  include: stop-spark-cluster.yml
+  when: stop_spark_cluster
+
+- name: "Cleanup and prepare cluster for relaunch"
+  hosts: spark
+  become: yes
+  tasks:
+    - include_vars: "../../group_vars/spark"
+
+    - include: ../../../common/tasks/update-symlink.yml
+      vars:
+        link_target_dir: "{{spark_latest_symlink}}"
+        link_source_dir: "{{spark_base}}/{{spark_default_version}}"
+
+    - name: "clean up logs"
+      include: tasks/spark-clean-logs.yml
+      tags:
+        - spark-clean-work-log-dir
+
+    - name: "configure spark member"
+      include: tasks/configure-spark-member.yml
+      when: configure_spark_member
+      tags:
+        - configure-spark-member
+
+- name: "Spark cluster"
+  include: start-spark-cluster.yml
+  when: start_spark_cluster
+  tags:
+    - start-spark-cluster

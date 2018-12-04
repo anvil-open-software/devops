@@ -1,0 +1,33 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# Copyright 2018, Dematic, Corp.
+
+- hosts: localhost
+  gather_facts: False
+  # simple example for testing a hashmap
+  vars:
+      run_parms_cld: "{prefix=yarn1_ executors=3},{prefix=yarn2_ executors=6}"
+      parms_cld: "yarn1_, yarn_2, yarn_3"
+      second_list: "list1, list2"
+      driver_parm : "run with {{ item }}"
+      run_count: 4
+  tasks:
+
+  - name: simple split of a comma separted list
+    debug: msg="{{ item }}"
+    with_items: parms_cld.split(',')
+
+  - name: loop on comma separted list double substitution
+    debug: msg="{{ driver_parm }}"
+    with_items: parms_cld.split(',')
+
+  - name: test nested of two split lists
+    debug:  msg="{{ item[0] }} {{ item[1] }}"
+    with_nested:
+      - parms_cld.split(',')
+      - second_list.split(',')
+
+  - name: use comma separated array
+    debug: msg="{{ run_parms_cld }}"
+  - debug: msg="{{ item }}"
+    with_items: run_parms_cld.split(',')
+

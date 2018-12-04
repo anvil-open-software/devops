@@ -1,0 +1,88 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+# generic wrapper to create a cluster
+# cluster_member_private_ips_csv - comma separated list of private ip addresses
+#  see readme for tag management
+# ansible-playbook -i $DEVOPS_CONFIG_PATH/ansible/roles/YARN/inventory/azure-provision-devops -c local azure-provision-cluster-members.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+
+- hosts: localhost
+  vars:
+     vm_name_prefix: "{{app_name}}-{{app_cluster_name}}-{{app_cluster_member_type}}"
+     nic_name_prefix: "nic-{{vm_name_prefix}}"
+     azure_storage_account_type: "Premium_LRS"
+
+  tasks:
+    - include_vars: "{{azure_global_var_file}}"
+    - include_vars: "{{azure_resource_group_var_file}}"
+    - set_fact: cluster_member_private_ips="{{cluster_member_private_ips_csv.split(',')}}"
+
+    - name: "remove vm and disk to start from scratch"
+      azure_rm_virtualmachine:
+        auth_source: "msi"
+        resource_group: "{{azure_resource_group}}"
+        name: "{{vm_name_prefix}}-{{ item.replace('.','-') }}"
+        state: absent
+        remove_on_absent:
+          - virtual_storage
+      with_items: "{{cluster_member_private_ips}}"
+
+    - name: "Create network interfaces with private IP address {{cluster_member_private_ips_csv}}"
+      azure_rm_networkinterface:
+        name: "{{nic_name_prefix}}-{{ item.replace('.','-') }}"
+        resource_group: "{{azure_resource_group}}"
+        location:  "{{azure_location}}"
+        virtual_network:  "{{azure_vnet_fq}}"
+        subnet_name: "{{azure_subnet_name}}"
+        create_with_security_group: no
+        security_group: "{{azure_security_group}}"
+        ip_configurations:
+          - name: ipconfig1
+            primary: True
+            private_ip_allocation_method: Static
+            private_ip_address: "{{item}}"
+      with_items: "{{cluster_member_private_ips}}"
+      tags:
+      - azure-create-nic
+
+    - name: "Provision VM for {{vm_name_prefix}}"
+      azure_rm_virtualmachine:
+        auth_source: "msi"
+        state: present
+        subscription_id: "{{azure_subscription_id}}"
+        resource_group: "{{azure_resource_group}}"
+        name: "{{vm_name_prefix}}-{{ item.replace('.','-') }}"
+        vm_size: "{{azure_vm_size|default(azure_vm_size_default)}}"
+        admin_username: "{{azure_admin_user}}"
+        ssh_password_enabled: no
+        ssh_public_keys:
+          - path: "/home/{{azure_admin_user}}/.ssh/authorized_keys"
+            key_data: "{{azure_admin_user_public_key}}"
+        network_interface_names: "{{nic_name_prefix}}-{{ item.replace('.','-') }}"
+        location:  "{{azure_location}}"
+        public_ip_allocation_method: Disabled
+        os_type: "Linux"
+        image:
+          offer: "{{azure_image_offer}}"
+          publisher: "{{azure_image_publisher}}"
+          sku:  "{{azure_image_sku}}"
+          version: "{{azure_image_version}}"
+        managed_disk_type: "{{azure_storage_account_type}}"
+        tags:
+          app-category: "{{app_category}}"
+          app-name: "{{app_name}}"
+          app-cluster-member-type: "{{app_cluster_member_type}}"
+          app-cluster-id: "{{app_cluster_name}}"
+          app-combo-id: "{{app_name}}_{{app_cluster_name}}"
+          prometheus_job_name: "{{prometheus_job_name}}"
+      with_items: "{{cluster_member_private_ips}}"
+      tags:
+        - azure-create-vm
+
+    - name: "Wait for SSH to come up"
+      wait_for: host="{{ item }}" port=22 delay={{ssh_wait_delay_seconds}} timeout={{ssh_timeout_seconds}} state=started
+      with_items: "{{cluster_member_private_ips}}"
+
+
+
+

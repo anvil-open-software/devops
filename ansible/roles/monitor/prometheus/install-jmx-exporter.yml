@@ -1,0 +1,58 @@
+# Copyright 2018 Dematic, Corp.
+# Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+
+# to run locally:
+# ansible-playbook -i /dematic/gitlab/devops-config/ansible/roles/monitoring/inventory/dev install-jmx-exporter.yml --private-key /dematic/keys/google/gcp-devops  -u devops
+
+- name: first get artifacts locally from repo
+  hosts: localhost
+  tasks:
+    - name: "Get latest standalone exporter from maven repo"
+      include: ../../repo/tasks/download-artifact-from-maven-repo.yml
+      vars:
+        artifact_owner: devops
+        artifact_repo_group_id: "io.prometheus.jmx"
+        artifact_id: "jmx_prometheus_httpserver"
+        artifact_dest_dir:  "{{local_artifact_location}}"
+        artifact_target_version: "{{monitor_jmx_exporter_version}}"
+        artifact_dest_fqn: "{{local_artifact_location}}/{{monitor_jmx_scraper_jar}}"
+        artifact_classfier_suffix: "-jar-with-dependencies"
+
+    - name: "Get jmx java agent from maven repo"
+      include: ../../repo/tasks/download-artifact-from-maven-repo.yml
+      vars:
+        artifact_owner: devops
+        artifact_repo_group_id: "io.prometheus.jmx"
+        artifact_id: "jmx_prometheus_javaagent"
+        artifact_dest_dir:  "{{local_artifact_location}}"
+        artifact_target_version: "{{monitor_jmx_exporter_version}}"
+        artifact_dest_fqn: "{{local_artifact_location}}/jmx_prometheus_javaagent.jar"
+        artifact_classfier_suffix: ""
+
+
+# distribute to clients
+- name: "Copy over jar file to clients"
+  hosts: monitor
+  become: yes
+  vars:
+    artifact_owner: devops
+  tasks:
+
+    - name: "create destination {{monitor_jmx_agent_dir}}  if needed"
+      file: path={{monitor_jmx_agent_dir}} state=directory owner={{artifact_owner}}
+    - name: "copy over artifacts from local"
+      copy:
+        src: "{{local_artifact_location}}/{{item}}"
+        dest: "{{monitor_jmx_agent_dir}}/{{item}}"
+        owner: "{{artifact_owner}}"
+        group: "{{artifact_owner}}"
+      with_items:
+        - "{{monitor_jmx_scraper_jar}}"
+        - "{{monitor_jmx_scraper_jar}}.meta"
+        - "jmx_prometheus_javaagent.jar"
+        - "jmx_prometheus_javaagent.jar.meta"
+
+
+
+

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+    <property>
+        <name>fs.defaultFS</name>
+        <value>hdfs://{{cluster_master_name}}:9000/</value>
+        <description>NameNode URI</description>
+        <final>true</final>
+    </property>
+
+    <property>
+        <name>hadoop.tmp.dir</name>
+        <value>{{hadoop_temp_drive}}</value>
+        <final>true</final>
+    </property>
+
+</configuration>

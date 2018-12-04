@@ -1,0 +1,45 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# run zeppelin stand alone server with interpretor configured for cassandra
+
+# to run locally:
+# ansible-playbook -i /dematic/gitlab/devops-config/ansible/roles/zeppelin/inventory/zeppelin-devops zeppelin-start.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+
+- name: "start zeppelin daemon"
+  hosts: zeppelin
+  tasks:
+    - block:
+      - name: stop zeppelin daemon
+        shell: /opt/zeppelin/zeppelin-latest/bin/zeppelin-daemon.sh stop
+        register: results
+        become: yes
+      - debug: var=results
+
+      - name: "purge log directories {{zeppelin_latest}}/logs"
+        file: path="{{zeppelin_latest}}/logs" state=absent
+      - file: path="{{zeppelin_latest}}/logs" state=directory
+
+      - name: "kill all spark_submit lurking around with draconian kill all jvms"
+        shell: killall -7 java
+        register: results
+        become: yes
+        ignore_errors: True
+      - debug: var=results
+
+
+      # there are internal IDs that are defined unique to each install
+      - name: copy over interpreters
+        template: src="templates/conf/{{item}}.j2" dest="/opt/zeppelin/zeppelin-latest/conf/{{item}}"
+        with_items:
+        - zeppelin-env.sh
+        - interpreter.json
+        - shiro.ini
+
+      - name: update env profile.d/zeppelin.sh
+        copy: src="files/etc/profile.d/zeppelin.sh" dest="/etc/profile.d" mode="a+rx"
+        become: yes
+
+      - name: start zeppelin daemon
+        shell: /opt/zeppelin/zeppelin-latest/bin/zeppelin-daemon.sh start
+        register: results
+      - debug: var=results

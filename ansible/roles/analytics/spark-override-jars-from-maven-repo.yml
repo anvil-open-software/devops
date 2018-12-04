@@ -1,0 +1,53 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+
+# update specific driver jar based on {{spark_driver_key}} from passed in {{spark_driver_conf_file}}
+# note: this currently runs to all members of the node-
+#         this is not necessary for YARN which copies the launcher jar into HDFS
+#         but was for Spark standalone which did not have a shared network drive.
+#
+#  ansible-playbook -i ../../test/inventory/artifactory-driver-test spark-override-jars-from-maven-repo.yml --private-key /dematic/keys/google/gcp-devops -u spark
+
+# previous nexus version had more meta information
+- name: first get artifacts locally from repo
+  hosts: localhost
+  tasks:
+    - debug:  msg="reading driver registry from {{spark_driver_conf_file}}"
+    - include_vars: "{{spark_driver_conf_file}}"
+    - debug: var=spark_extra_override_jars
+
+   # Get needed 3rd party drivers that conflict with hadoop/YARN
+    - name: Create spark driver lib location if needed
+      file: path={{local_artifact_location}}  state=directory
+    - name: get conflicting 3rd party overrides like okio from maven
+      include: ../repo/tasks/download-artifact-from-maven-repo.yml
+      vars:
+        artifact_owner: spark
+        artifact_repo_type: "thirdparty"
+        artifact_repo_group_id: "{{item.value.groupId}}"
+        artifact_id: "{{item.value.artifactId}}"
+        artifact_dest_dir:  "{{local_artifact_location}}"
+        artifact_target_version: "{{item.value.version}}"
+        artifact_dest_fqn: "{{local_artifact_location}}/{{ item.value.artifactId }}-{{item.value.version}}.jar"
+      with_dict: "{{spark_extra_override_jars}}"
+
+# distribute to clients
+- name: "Copy over jar file to clients"
+  hosts: spark
+  become: yes
+  vars:
+    artifact_owner: spark
+  tasks:
+    - include_vars: "roles/spark/group_vars/spark"
+    - include_vars: "{{spark_driver_conf_file}}"
+    - debug: var=spark_driver_target
+
+    - name: "copy over artifacts from local"
+      copy:
+        src: "{{local_artifact_location}}/{{ item.value.artifactId }}-{{item.value.version}}.jar"
+        dest: "{{spark_latest}}/jars/{{ item.value.artifactId }}-{{item.value.version}}.jar"
+        owner: "{{artifact_owner}}"
+        group: "{{artifact_owner}}"
+      with_dict: "{{spark_extra_override_jars}}"
+
+

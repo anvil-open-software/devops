@@ -1,0 +1,66 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# validate final events processed between kafka and spark/yarn structured streaming driver
+#
+# The driver has to provide a way of getting counts which is driver meta yaml definition.
+#
+
+# ansible-playbook -i  /dematic/gitlab/devops-config/ansible/roles/validation/inventory/devops-ss-aggregation \
+#  ss-validate-driver-against-producer.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+# this value is generic for any kafka topic
+- include: ../kafka/kafka-get-topic-offsets.yml
+  ignore_errors: yes
+
+# cassandra specific to driver as written to cassandra table
+- include: get-cassandra-signal-counts-meta.yml
+- include: get-cassandra-producer-counts.yml
+
+- name: "Validate  signal_validation counts against kafka offset"
+  hosts: localhost
+  vars:
+    signal_validation_kafka_offset_mismatch: false
+
+  tasks:
+    # if only there was a case statement or nested inner blocks
+    - block:
+        - name: "set to fail for {{data_processing_semantics}} if kafka count {{kafka_summed_partition_offset}} < spark count {{consumer_spark_final_count}}"
+          debug: msg="MISSED Kafka Messages"
+        - set_fact: signal_validation_kafka_offset_mismatch=true
+      when: data_processing_semantics=="AT_LEAST_ONCE" and (kafka_summed_partition_offset|int)>(consumer_spark_final_count|int)
+
+    - block:
+        - set_fact: signal_validation_kafka_offset_mismatch=true
+        - name: "set to fail for {{data_processing_semantics}} if consumer count {{consumer_spark_final_count}} != spark count {{kafka_summed_partition_offset}}"
+          debug: msg="MISMATCH"
+      when: data_processing_semantics=="EXACTLY_ONCE" and (kafka_summed_partition_offset|int)!=(consumer_spark_final_count|int)
+
+    - set_fact:
+        driver_run_summary:
+          counts:
+            kafka_summed_partition_offset: "{{kafka_summed_partition_offset}}"
+            consumer_spark_final_count: "{{consumer_spark_final_count}}"
+            producer_count: "{{signal_validation_producer_final_count}}"
+            producer_error_count: "{{signal_validation_producer_error_count}}"
+          report_run_date: "{{ ansible_date_time.iso8601 }}"
+          run_parms:
+            cluster : "{{regression_cluster_set}}"
+            spark_driver: "{{spark_driver_key}}"
+            spark_driver_version: "{{spark_driver_version}} {{artifact_repo_name}}"
+            spark_version: "{{spark_version}}"
+            kafka_version: "{{kafka_version}}"
+            kafka_topic: "{{kafka_topic}}"
+            run_duration_in_minutes: "{{run_duration_in_minutes}}"
+            ansible_test_scenario: "{{ansible_test_scenario}}"
+            data_processing_semantics: "{{data_processing_semantics}}"
+    # used for jenkins report regex stripping
+    - debug: msg="DRIVER RUN SUMMARY BEGIN"
+    - debug: var=driver_run_summary
+    - debug: msg="DRIVER RUN SUMMARY END"
+
+    - name: "Copy summary to file {{driver_report_summary_path}}"
+      shell: echo "{{ driver_run_summary|to_nice_yaml }}" > "{{driver_report_summary_path}}/{{spark_driver_key}}_{{build_number}}.out"
+      #local_action: copy content="{{ driver_run_summary }}" dest="{{driver_report_summary_path}}/{{spark_driver_key}}_{{build_number}}.out"
+
+    - fail: msg="Event signal counts mismatched"
+      when:  signal_validation_kafka_offset_mismatch
+

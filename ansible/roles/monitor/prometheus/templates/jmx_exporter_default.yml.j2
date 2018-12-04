@@ -1,0 +1,22 @@
+
+# Copyright 2018 Dematic, Corp.
+# Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+---
+#hostPort: 127.0.0.1:7199
+
+# although hostPort is more concise, use jmxURL for explicitness
+
+jmxUrl: service:jmx:rmi:///jndi/rmi://127.0.0.1:7199/jmxrmi
+ssl: false
+lowercaseOutputName: false
+lowercaseOutputLabelNames: false
+
+rules:
+    # when running standalone, memory appears not to be included for free and need to be explicitly added
+    - pattern: 'java.lang<type=Memory><(\w+)MemoryUsage>(\w+):'
+      name: jvm_memory_bytes_$2
+      labels:
+        area: "$1"
+      help: JVM memory $2 by area heap and nonheap
+      type: GAUGE

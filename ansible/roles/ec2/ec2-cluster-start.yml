@@ -1,0 +1,78 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+ # start ec2 instances based on cluster tag filter criteria from jenkins.
+ # will wait if any of them are in cluster state
+ # send in from jenkins:
+ # cluster_tag and cluster_name
+
+ # actual ec2 command is using something like:
+ # aws ec2 describe-instances --output text --region us-east-1
+ #    --query 'Reservations[*].Instances[*].{ID:InstanceId,IP:NetworkInterfaces[*].PrivateIpAddresses[*].PrivateIpAddress}'
+ #    --filter Name=tag:KCL_GROUP,Values=dev
+
+ # to run locally
+ # ansible-playbook  -i ../../test/inventory/test_local_cassandra ec2-cluster-start.yml
+
+  vars:
+    filter_parms: "--filter Name=tag:{{cluster_tag}},Values={{cluster_name}}"
+
+    ec2_instanceid_cmd:  "{{ec2_describe_cmd}} --query '{{ec2_field_instanceid}}'   {{filter_parms}}"
+    ec2_ipaddress_cmd:  "{{ec2_describe_cmd}} --query '{{ec2_field_private_address}}'    {{filter_parms}}"
+    ec2_status_cmd:  "{{ec2_describe_cmd}} --query '{{ec2_field_instance_status}}'  {{filter_parms}}"
+    start_ec2: true
+
+  tasks:
+
+    # note if it was previously "stopping" state, it cannot start and we have to wait until it is in "stopped" state
+    - name: Make sure instance status not in stopping state, wait until it isn't
+      shell:  "{{ec2_status_cmd}}"
+      register: ec2_status_result
+      until: (ec2_status_result.stdout.find("stopping") == -1)
+      retries: "30"
+      delay: "7"
+
+
+    - debug: msg="{{ec2_instanceid_cmd}}"
+    - name: Get all ec2 instance ids with matching cluster id
+      local_action: command {{ec2_instanceid_cmd}}
+      register: result
+    - set_fact: instanceids="{{ result.stdout_lines}}"
+    - debug: msg="{{instanceids}}"
+
+    - name: Echo instance ids
+      debug: msg="{{ item }}"
+      with_items: '{{ instanceids }}'
+
+
+    - name: Update instance type id before start if specified by change_instance_type and instance_type
+      shell: "{{ec2_modify_instance_cmd}} --instance-id {{item}} --instance-type {{instance_type}}"
+      with_items: '{{ instanceids }}'
+      when: change_instance_type is defined and change_instance_type=="true" and (ec2_status_result.stdout.find("running") == -1)
+
+    - name: Start EC2 instances matching filter
+      ec2:
+        state: running
+        instance_ids: "{{ instanceids }}"
+        region: "{{ region }}"
+        wait: no
+        wait_timeout: 300
+      register: ec2_result
+
+    - debug: var=ec2_result
+
+    # we wait for SSH instead of being in the "running" state as it is faster.
+
+    - name: get private IP addresses matching filter so we can wait to see SSH is up
+      local_action: command {{ec2_ipaddress_cmd}}
+      register: ip_result
+    - set_fact: private_addresses="{{ ip_result.stdout_lines}}"
+    - debug: msg="{{private_addresses}}"
+
+    - name: Wait for SSH to come up
+      wait_for: host={{ item }} port=22 delay={{ssh_wait_delay}} connect_timeout={{ssh_connect_timeout}} timeout={{ssh_timeout}}  state=started
+      with_items: "{{private_addresses}}"
+      #when: (wait_for_ssh is defined) and (wait_for_ssh=="true")

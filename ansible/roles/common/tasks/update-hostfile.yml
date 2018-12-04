@@ -1,0 +1,16 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+- name: "make sure target host is registered in /etc/hosts"
+  lineinfile : dest=/etc/hosts line="{{inventory_hostname}} {{ansible_fqdn}}" state=present insertbefore=BOF
+
+# remove any other localhost definitions that have host name
+- name: " clean up all 127.0.0.1 definitions"
+  lineinfile : path=/etc/hosts regexp='^(127\.0\.0\.1\s)' state=absent
+
+- name: "add back local host cleanly"
+  lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.0\.1'
+    line: '127.0.0.1 localhost'
+    insertbefore: BOF
+

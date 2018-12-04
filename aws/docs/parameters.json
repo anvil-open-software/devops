@@ -1,0 +1,26 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Some useful parameter types for template use",
+  "Parameters": {
+    "NatSecurityGroup": {
+      "Description": "Target Security Group",
+      "Type": "AWS::EC2::SecurityGroup::Id"
+    },
+    "KeyPairName": {
+      "Description": "Existing EC2 KeyPair",
+      "Type": "AWS::EC2::KeyPair::KeyName"
+    },
+    "VPC": {
+      "Description": "Target VPC",
+      "Type": "AWS::EC2::VPC::Id"
+    },
+    "PublicSubnet": {
+      "Description": "VPC Public Subnet Id",
+      "Type": "AWS::EC2::Subnet::Id"
+    },
+    "PrivateSubnet": {
+      "Description": "VPC private subnet id",
+      "Type": "AWS::EC2::Subnet::Id"
+    }
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "AWS CloudFormation template for base linux launch to install APP required stack",
+
+  "Parameters" : {
+
+    "KeyPair" : {
+      "Description" : "Existing EC2 KeyPair",
+      "Type" : "AWS::EC2::KeyPair::KeyName",
+      "Default" : "devops"
+    },
+
+    "TargetSubnet" : {
+      "Description" : "VPC Private Dev Subnet Id",
+      "Type" : "AWS::EC2::Subnet::Id",
+      "Default" : "subnet-d483baee"
+    },
+
+
+    "InstanceType" : {
+      "Description" : "EC2 instance type",
+      "Type" : "String",
+      "Default" : "m3.large",
+      "AllowedValues" : [ "m4.large","m4.xlarge","m4.2xlarge"]
+    },
+
+    "PrivateAddress" : {
+      "Description" : "Internal I.P. Address of Server",
+      "Type" : "String",
+      "MinLength": "9",
+      "MaxLength": "18",
+      "Default" : "10.x.x.x",
+      "ConstraintDescription" : "must be a valid I.P. 10.40.x.x within subnet"
+    },
+
+    "BaseSecurityGroup" : {
+      "Description" : "Base Security Group",
+      "Type" : "AWS::EC2::SecurityGroup::Id",
+      "Default" : "sg-ae2f14ca"
+    },
+
+    "SecurityGroup" : {
+      "Description" : "Debug Security Group",
+      "Type" : "AWS::EC2::SecurityGroup::Id",
+      "Default" : "sg-3e84be5a"
+    },
+
+    "IAMInstanceRole" : {
+      "Description" : "Target IAM Role",
+      "Default" : "app-iqpoc",
+      "Type" : "String"
+    } ,
+
+    "targetAMI" : {
+      "Description" : "latest iqpoc standalone base image",
+      "Type" : "String",
+      "Default" : "ami-fb56209e"
+    }
+
+  },
+
+  "Resources" : {
+    "TargetENI" : {
+      "Type" : "AWS::EC2::NetworkInterface",
+      "Properties" : {
+        "Description": "iqpoc standalone ENI",
+        "SourceDestCheck": "true",
+        "GroupSet"                 : [{ "Ref" : "BaseSecurityGroup" }, { "Ref" : "SecurityGroup" }],
+        "SubnetId"                 : { "Ref" : "TargetSubnet" },
+        "PrivateIpAddress": { "Ref" : "PrivateAddress" },
+        "Tags": [{"Key":"Name","Value":"iqpoc Standalone"}]
+      }
+    },
+
+    "WebServer": {
+      "DependsOn" : "TargetENI",
+      "Type": "AWS::EC2::Instance",
+
+      "Properties": { 
+        "InstanceType"   : { "Ref" : "InstanceType" },
+        "ImageId" :  { "Ref" : "targetAMI" },
+        "KeyName"  : { "Ref" : "KeyPair" },
+        "IamInstanceProfile" : { "Ref" : "IAMInstanceRole" },
+        "NetworkInterfaces" : [ {
+          "NetworkInterfaceId" : {"Ref" : "TargetENI"}, "DeviceIndex" : "0" } ],
+        "Tags" : [
+          { "Key" : "Name", "Value" : "iqpoc Pull Request 10.x.x.x" },
+          { "Key" : "Ansible-Control-Group", "Value" : "iqpoc-standalone" }
+        ]
+       }
+    }
+  }
+
+}

@@ -1,0 +1,10 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# ansible-playbook -i  /dematic/git/devops-config/ansible/roles/validation/inventory/dev-cluster \
+# test-variables.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+# vanilla case where you have a single run go through a single time
+
+- name: "Diagnostic for variables"
+  hosts: localhost
+  tasks:
+    - debug: var=hostvars

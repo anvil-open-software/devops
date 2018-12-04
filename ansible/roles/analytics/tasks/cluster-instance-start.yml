@@ -1,0 +1,29 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+  vars:
+    region: us-east-1
+    ec2_describe_cmd: aws ec2 describe-instances --output text --query 'Reservations[*].Instances[*].InstanceId'
+    # send in from jenkins
+    # cluster_name: mesos
+  tasks:
+
+    # aws ec2 describe-instances --output text  --query 'Reservations[*].Instances[*].InstanceId'  \
+    #   --filter Name=tag:SPARK_CLUSTER_ID,Values=mesos
+
+    - name: Get all ec2 instance ids with matching cluster id
+      local_action: command {{ec2_describe_cmd}} --filter Name=tag:SPARK_CLUSTER_ID,Values={{cluster_name}}
+      register: result
+
+    - set_fact: instanceids="{{ result.stdout.split() }}"
+    - debug: msg="{{instanceids}}"
+
+    - name: Terminate instances that were previously launched
+      ec2:
+        state: 'running'
+        instance_ids: '{{ instanceids }}'
+        region: '{{ region }}'
+        wait: True
+

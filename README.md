@@ -1,2 +1,2 @@
 # devops
-Automation of our data pipeline, iqpoc, and dev enviornment
+Automation of our data pipeline including kafka, spark, YARN, cassandra

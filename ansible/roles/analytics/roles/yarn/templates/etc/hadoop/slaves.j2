@@ -1,0 +1,5 @@
+{% for host in groups['yarn'] %}
+{% if host.find("{{yarn_master_ip}}") ==-1 %}
+{{ host }}
+{% endif %}
+{% endfor %}

@@ -1,0 +1,21 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# known stable version, override by passing in cassandra_version_override
+cassandra_version_default: 3.7
+
+# Specify from caller
+cassandra_cluster_name: "default_caller_needs_to_set"
+
+# note this is where rpm based created the config directory but this is different
+cassandra_conf_dir : "/etc/cassandra/default.conf"
+
+# put it on the fastest disk possible
+cassandra_root_dir : "/opt/cassandra"
+cassandra_data_dir : "{{cassandra_root_dir}}/data"
+
+# default for keyspace creation
+default_replication_factor: 2
+
+cassandra_user: cassandra
+
+# set default to GoogleCloudSnitch but caller can pass in a different snitch
+cassandra_endpoint_snitch: GoogleCloudSnitch

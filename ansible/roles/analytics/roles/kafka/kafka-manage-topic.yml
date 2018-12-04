@@ -1,0 +1,20 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts:  zookeeper-nodes
+  run_once: true
+#
+# 1. create keyspace: set create_keyspace="true"
+# 2. drop keyspace : set drop_keyspace="true"
+# 3. drop keyspace before creating keyspace
+#
+# to run locally:
+# ansible-playbook -i ../../../../test/inventory/kafka kafka-manage-topic.yml --private-key /dematic/keys/devops.pem -u kafka
+
+# need to pass in  topic, kafka_topic_replication_factor, kafka_num_partitions
+
+  vars:
+
+  tasks:
+
+    - include: tasks/kafka-manage-topic.yml
+

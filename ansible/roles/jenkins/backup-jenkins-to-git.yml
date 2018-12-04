@@ -1,0 +1,39 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# pass in git_commit_message
+# ansible-playbook  -i "localhost," -c local backup-jenkins-to-git.yml
+
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars:
+    jenkins_backup_dir: "/data/backups/gitlab"
+    jenkins_git_dir: "{{jenkins_backup_dir}}/{{git_project}}"
+    git_repo: "{{git_repo_root}}/{{git_project}}.git"
+
+  tasks:
+  - block:
+
+    # - git: repo=ssh://{{git_repo}} dest="{{jenkins_git_dir}}"
+    - name: clone repo if needed
+      shell: "git clone {{git_repo}}"
+      args:
+        chdir: "{{jenkins_backup_dir}}"
+        creates: "{{jenkins_git_dir}}/config.xml"
+    - name: git checkout and pull
+      shell: "git checkout {{git_branch}}; git pull"
+      args:
+        chdir: "{{jenkins_git_dir}}"
+      register: results
+    - debug: var=results
+
+    - name: "rsync"
+      shell: "rsync -am  --include='config.xml' --include='*/' --prune-empty-dirs --exclude='*'  /data/jenkins/jobs/ {{jenkins_git_dir}}/jobs/"
+    - shell: "rsync /data/jenkins/config.xml {{jenkins_git_dir}}/config.xml"
+    - shell: "rm -rf {{jenkins_git_dir}}/jobs/Jenkins_Thin_Backup"
+    - shell: "git add --all jobs; git commit -am '{{git_commit_message}}'; git push "
+      args:
+        chdir: "{{jenkins_git_dir}}"
+      register: results
+    - debug: var=results

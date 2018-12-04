@@ -1,0 +1,50 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+# to run locally:
+# ansible-playbook -i /dematic/git/devops-config/ansible/roles/kafka/inventory/kafka-dev-cluster kafka-stop-cluster.yml --private-key /dematic/keys/devops.pem -u kafka
+- name: "Stop kafka nodes"
+  hosts: kafka-nodes
+  become: no
+  vars:
+    # kafka.Kafka no longer shows up in ps in 0.11
+    kafka_shutdown_cmd: "ps ax | grep -i 'kafka_latest' | grep java | grep -v grep | awk '{print $1}' | xargs kill -SIGKILL"
+
+  tasks:
+    - name:  Stop kafka with SIGKILL
+      # /kafka-server-stop.sh appears NOT to shutdown using -SIGTERM leaves zombie process
+      shell: "{{kafka_shutdown_cmd}}"
+      ignore_errors: yes
+    - debug: var=results
+      # note need to continue to shutdown in case other processes are up
+    - name : purge logs here just to do a devops debug that everything does get cleaned out.
+      include: tasks/kafka-purge-logs.yml
+      when: purge_logs_after_stop is defined and purge_logs_after_stop=="true"
+
+  # todo this fails when there are no kafka processes so we need to check it's running in the first place
+
+- name: "Stop zookeeper"
+  hosts: zookeeper-nodes
+  run_once: true
+  vars:
+    # note zookeeper-server-stop.sh does NOT work as it uses a SIGINT, use pkill if it's not there
+    # not sure why zookeeper uses SIGINT when kafka uses SIGTERM
+    zookeeper_shutdown_cmd: "ps ax | grep -i 'zookeeper' | grep -v grep | awk '{print $1}' | xargs kill -SIGTERM"
+    kafka_mgr_cmd: "ps ax | grep -i 'ProdServerStart' | grep -v grep | awk '{print $1}' | xargs kill -SIGTERM"
+  tasks:
+    - name: Stop zookeeper with SIGTERM
+      shell: "{{zookeeper_shutdown_cmd}}"
+      ignore_errors: yes
+      register: results
+    - debug: var=results
+    - include: tasks/kafka-purge-logs.yml
+      when: purge_logs_after_stop is defined and purge_logs_after_stop=="true"
+    - name: Stop kafka manager with SIGTERM, killing of zookeeper sometimes automatically appears to kill this.
+      shell: "{{kafka_mgr_cmd}}"
+      ignore_errors: yes
+      register: results
+    - file: path="{{kafka_manager_dir}}/RUNNING_PID" state=absent
+
+# shutdown kafka-mgr
+
+
+

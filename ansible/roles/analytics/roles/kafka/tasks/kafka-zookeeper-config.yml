@@ -1,0 +1,10 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+- name: "Template zookeeper configuration files"
+  template: src=../templates/config/{{ item }}.j2 dest="{{kafka_config_dir}}/{{item}}" mode=0640 owner={{ kafka_user }}
+  with_items:
+    - zookeeper.properties
+
+- name: "create {{zookeeper_data_dir}} dir"
+  file: path="{{zookeeper_data_dir}}" state=directory owner=kafka
+  become: yes
+# clean up log files here  if desired

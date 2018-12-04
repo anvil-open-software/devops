@@ -1,0 +1,52 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: kinesis_client
+#
+# jenkins must pass in target_producer which can be KinesisEventClient or NodeExecutor see kinesis_client
+# parallel_parameters to control gnu parallel
+#
+  vars:
+    # actual driver parameters sent in via jenkins, default AWS urls may be defined in ansible
+    java_submit_command: "java {{jvmoptions}} -cp {{kinesis_producer_fqn}} {{producer_java_class}} {{kcl_parameters}}"
+    # pass in from jenkins until I figure out a way to max out the cores via parallel
+    # kcl_max_processes: 10
+    # parallel_parameters: "--res event_producer -n0 --jobs 0 "
+    parallel_command: "seq {{kcl_max_processes}} | parallel {{parallel_parameters}}  {{java_submit_command}}"
+    #parallel_command: "parallel -n0  {{java_submit_command}} ::: {1..{{kcl_max_processes}}}"
+    jvm_async_wait_time: 30
+
+  tasks:
+    # since execution is so fast, we hook this up here.
+    - name: tune tcp/ip settings
+      include: ../roles/linux/tune-tcp-ip.yml
+      sudo: yes
+
+    - name: fetch class name
+      #note that ansible flattens out item to a string, not a record
+      set_fact: producer_java_class={{event_producer_dict[target_producer].producer_class}}
+
+    - name: kill all previous java jobs is requested through kill_all_kcl_clients parameter
+      shell: killall -7 java
+      when: (kill_all_kcl_clients is defined) and (kill_all_kcl_clients=="true")
+      ignore_errors: True
+    - shell: killall -7 kinesis_producers
+      when: (kill_all_kcl_clients is defined) and (kill_all_kcl_clients=="true")
+      ignore_errors: True
+
+    - name: delete tmp directory junk produced by kinesis producer
+      shell: rm -rf /tmp/amazon-kinesis-producer*
+      when: (purge_all_clients_logs is defined) and (purge_all_clients_logs=="true")
+      ignore_errors: True
+    - shell: rm -f /tmp/hs_err_*.log
+      when: (purge_all_clients_logs is defined) and (purge_all_clients_logs=="true")
+      ignore_errors: True
+    - shell: rm -f /tmp/par*.par
+      ignore_errors: True
+      when: (purge_all_clients_logs is defined) and (purge_all_clients_logs=="true")
+
+    - debug: msg="{{ parallel_command }}"
+    - name: Launch gnu parallel - run fire and forget background job so can return
+      shell: "{{parallel_command}}"
+      async: "{{jvm_async_wait_time}}"
+      poll: 0
+      register: submit_response

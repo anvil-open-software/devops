@@ -1,0 +1,27 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+#
+#  fine tuned for kinesis producers but probably will work with all
+#   http://stackoverflow.com/questions/410616/increasing-the-maximum-number-of-tcp-ip-connections-in-linux
+# see http://wiki.ops.cld/display/DLAB/Linux+TCP+Network+Socket+Tuning
+
+- name: set tcp ip settings for increased requests
+  command: sysctl net.ipv4.ip_local_port_range="15000 65535"
+- command: sysctl net.ipv4.tcp_fin_timeout=30
+
+# Enable fast recycling TIME-WAIT sockets, default both 0
+- block:
+  - command: sysctl net.ipv4.tcp_tw_recycle=1
+  - command: sysctl net.ipv4.tcp_tw_reuse=1
+  when: ansible_distribution != 'Ubuntu'
+
+- command: sysctl net.core.somaxconn=65000
+
+# sysctl module fails each time due to  Failed to reload sysctl: net.ipv4.ip_forward = 0 so we do it old fashioned way for now
+#  sysctl: name=net.ipv4.ip_local_port_range value="15000 65535"
+#- sysctl: name=net.ipv4.tcp_fin_timeout value=30
+
+# Enable fast recycling TIME-WAIT sockets
+#- sysctl: name=net.ipv4.tcp_tw_recycle value=1
+#- sysctl: name=net.ipv4.tcp_tw_reuse value=1
+#- sysctl: name=net.core.somaxconn value=65000

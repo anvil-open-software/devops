@@ -1,0 +1,13 @@
+
+# group parameters into region
+# this could be more easily fed in from jenkins. Had it checked in case we use it from different sources.
+aws_region: "us-east-1"
+
+kcl_ami_id: ami-xxxxx
+
+# "DL Internal Base Access"
+kcl_security_group_id: sg-xxxxx
+
+
+kcl_subnet_id: subnet-xxxxx
+key_pair_name: devops

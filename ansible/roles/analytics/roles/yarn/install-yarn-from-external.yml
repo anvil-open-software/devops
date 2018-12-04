@@ -1,0 +1,35 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: yarn
+
+  # upgrade to latest version of hadoop.
+  # override in version
+  # http://www.apache.org/dyn/closer.cgi/hadoop/common/hadoop-2.7.3/hadoop-2.7.3.tar.gz
+  #
+  vars:
+    hadoop_new_dir: "hadoop-{{hadoop_version}}"
+  tasks:
+    - name: "Create hadoop directories {{hadoop_base}}/{{hadoop_new_dir}}"
+      file: path={{hadoop_base}} state=directory owner={{yarn_user}}
+      become: yes
+
+    - name: "download and unpack {{hadoop_download_url}} to {{hadoop_base}} when {{hadoop_new_dir}} does not exist"
+      get_url:
+        url: "{{hadoop_download_url}}"
+        force: no
+        dest: "{{hadoop_base}}"
+
+    - name: Unpack archive
+      command: "tar -zxf {{hadoop_base}}/{{hadoop_new_dir}}.tar.gz -C {{hadoop_base}}"
+
+      # unfortunately tar.gz is not an archive and so this single liner is not supported but this might be fixed in 2.2
+      #get_url: src={{hadoop_download_url}} dest={{hadoop_base}} copy=no creates=no owner={{yarn_user}} group={{yarn_user}} copy=no
+
+    - include: ../../../common/tasks/update-symlink.yml
+      vars:
+        link_target_dir: "{{hadoop_home}}"
+        link_source_dir: "{{hadoop_base}}/{{hadoop_new_dir}}"
+
+
+
+

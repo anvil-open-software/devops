@@ -1,0 +1,45 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: all
+
+# generically launches a java jar
+# kills any existing java processes with same jar name
+#
+# PARAMETERS: pass in from jenkins or inventory file
+#    log_dir, log_file, artifact_location, target_jar
+# test locally with:
+# ansible-playbook ../../../test/inventory/kcl-client --private-key /dematic/keys/devops.pem  -u spark deploy-java-jar.yml
+
+  vars:
+    log_file_fqn:  "{{log_dir}}/{{log_file}}"
+    jvm_launch_cmd: "java {{jvm_options}} -jar {{artifact_location}}/{{target_jar}}  {{jar_parameters}}"
+
+    launch_cmd: "{{jvm_launch_cmd}} > {{log_file_fqn}}"
+    # forced to use nohup since going through jenkins, the play will  kill the jvm right away.
+    nohup_launch_cmd: "(nohup {{launch_cmd}})&"
+
+  tasks:
+
+    - name: Get processid of any existing processes with matching jar name
+      shell: "$JAVA_HOME/bin/jps -l | grep {{target_jar}} | awk '{print $1}'"
+      register: java_pid
+      when: kill_jar_process
+
+    - debug: var=java_pid
+    - name: Kill existing process if java_pid exists
+      # todo currently expects only one item, would have to do something different for multiple
+      shell: kill {{java_pid.stdout}}
+      when: kill_jar_process and (java_pid.stdout|length > 0)
+
+    - name: Create log location if needed, wipe out any old log
+      file: path={{log_dir}} state=directory
+    - file: path={{log_file}} state=absent
+
+    - debug: var=launch_cmd
+    - name: Launch java jar asynchronously, and poll below to see if log is successful
+      shell: "{{nohup_launch_cmd}}"
+      register: launch_results
+    - debug: msg="{{launch_results}}"
+
+    - fail: msg="{{launch_results.stderr}}"
+      when: (launch_results is defined)  and (launch_results.stderr.find('Error') > -1)

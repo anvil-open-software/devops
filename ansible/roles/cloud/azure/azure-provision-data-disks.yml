@@ -1,0 +1,44 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+# use azure-provision-cluster-member-data-disked.yml to provision vm with data disk
+
+# generic utility to attach a disk for vms already provisioned vm
+
+# cluster_member_private_ips_csv - comma separated list of private ip addresses
+# cluster_member_names_csv
+# ansible-playbook -i $DEVOPS_CONFIG_PATH/ansible/roles/kafka/inventory/azure-kafka-devops-datadisk-test -c local azure-provision-data-disks.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+
+- hosts: localhost
+  become: no
+  vars:
+     storage_account_type_default: "Premium_LRS"
+
+  tasks:
+    - include_vars: "{{azure_global_var_file}}"
+    - include_vars: "{{azure_resource_group_var_file}}"
+    - set_fact: cluster_member_private_ips="{{cluster_member_private_ips_csv.split(',')}}"
+    - set_fact: cluster_member_names="{{cluster_member_names_csv.split(',')}}"
+
+# todo fix get vm name from CLI, probably easiest to use tag from ip address
+
+    - name: "Create primary non-boot data disks for {{cluster_member_private_ips_csv}}"
+      azure_rm_managed_disk:
+        name: "{{item.1}}-data-disk-0"
+        state: present
+        location: "{{azure_location}}"
+        resource_group: "{{azure_resource_group}}"
+        disk_size_gb: "{{vm_datadisk_size}}"
+        storage_account_type: "{{storage_account_type|default(storage_account_type_default)}}"
+        create_option: "empty"
+        auth_source: "msi"
+        subscription_id: "{{azure_subscription_id}}"
+        os_type: "linux"
+        managed_by: "{{item.0}}"
+      with_together:
+        - "{{cluster_member_names}}"
+        - "{{cluster_member_private_ips}}"
+      when: azure_create_data_disk
+
+
+

@@ -1,0 +1,12 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# note in 0.11 --partition option is made plural
+- set_fact: partition_option="--partitions {{kafka_num_partitions}}"
+
+- set_fact: topic_parms="--replication-factor {{kafka_topic_replication_factor}} {{partition_option}} --topic {{kafka_topic}}"
+
+- name: "create topic {{topic_parms}} "
+  shell: "{{kafka_bin_dir}}/kafka-topics.sh --create --zookeeper {{kafka_zookeeper_connection}} {{topic_parms}}"
+  register: result
+
+- include: kafka-list-topics.yml

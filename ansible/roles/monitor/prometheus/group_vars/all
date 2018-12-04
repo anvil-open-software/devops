@@ -1,0 +1,20 @@
+
+# Copyright 2018 Dematic, Corp.
+# Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+artifact_owner: devops
+
+# prometheus monitoring
+local_artifact_location: /tmp/prometheus
+
+monitor_jmx_exporter_version: 0.10-SNAPSHOT
+artifact_repo_type: snapshot
+
+monitor_jmx_agent_dir: "/opt/prometheus/jmx_exporter"
+monitor_jmx_agent_config: "{{monitor_jmx_agent_dir}}/jmx_exporter_default.yml"
+# static non ephmeral port
+monitor_jmx_port: 7070
+
+monitor_jmx_scraper_jar: "jmx_prometheus_httpserver-jar-with-dependencies.jar"
+
+

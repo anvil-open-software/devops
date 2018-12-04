@@ -1,0 +1,14 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# Copyright 2018, Dematic, Corp.
+
+# ansible-playbook -i ../inventory/kafka test_facts.yml
+- hosts: localhost
+  gather_facts: False
+
+  vars:
+    mixed_case: "littleBIG"
+
+  tasks:
+
+    - set_fact: mixed_case="{{ mixed_case|lower }}"
+    - debug: var=mixed_case

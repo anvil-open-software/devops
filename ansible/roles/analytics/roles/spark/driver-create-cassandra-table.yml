@@ -1,0 +1,59 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# download table creation cql from repo and run it with cqlsh
+#
+#  ansible-playbook -i ../../../../test/inventory/cassandra-table-test driver-create-cassandra-table.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+# previous nexus version had more meta information
+- name: first get artifacts  from repo
+  hosts: localhost
+  tasks:
+    - debug:  msg="reading driver registry from {{spark_driver_conf_file}}"
+    - include_vars: "{{spark_driver_conf_file}}"
+    - set_fact: spark_driver_target={{spark_drivers_dict[spark_driver_key]}}
+    - debug: var=spark_driver_target
+
+    - name: "Get target cql file {{spark_driver_key}} from maven repo"
+      include: ../../../repo/tasks/download-artifact-from-maven-repo.yml
+      vars:
+        artifact_owner: spark
+      #  artifact_repo_group_id: "{{artifact_repo_group_id}}"
+        artifact_id: "{{spark_driver_target.module}}"
+        artifact_dest_dir:  "{{local_artifact_location}}"
+        artifact_target_version: "{{repo_target_version|default(repo_target_version_default)}}"
+        artifact_extension: "cql"
+        artifact_classifier: "cql"
+        artifact_classifier_override: "artifact_classifier_override"
+        artifact_dest_fqn: "{{local_artifact_location}}/{{spark_driver_target.cassandra.table_init_cql_classifer}}.cql"
+        # need this workaround until https://github.com/ansible/ansible-modules-extras/issues/2139
+        artifact_classfier_suffix: "-{{spark_driver_target.cassandra.table_init_cql_classifer}}"
+
+# distribute to clients
+- name: "Copy over cql to cassandra client"
+  hosts: cassandra
+  become: yes
+  vars:
+    artifact_owner: cassandra
+    cql_script_location: "/tmp/cql"
+    cassandra_creds:  "-u {{cassandra_app_user}} -p {{cassandra_app_password}}"
+    cassandra_sql_cmd: "cqlsh {{cassandra_host}} {{cassandra_creds}}"
+  tasks:
+    - include_vars: "{{spark_driver_conf_file}}"
+    - set_fact: spark_driver_target={{spark_drivers_dict[spark_driver_key]}}
+    - debug: var=spark_driver_target
+    - set_fact: init_cql_file="{{spark_driver_target.cassandra.table_init_cql_classifer}}.cql"
+    - name: "create destination {{cql_script_location}}  if needed"
+      file: path={{cql_script_location}} state=directory owner={{artifact_owner}}
+    - name: "copy over artifacts from local to {{cql_script_location}}"
+      copy:
+        src: "{{local_artifact_location}}/{{item}}"
+        dest: "{{cql_script_location}}/{{item}}"
+        owner: "{{artifact_owner}}"
+        group: "{{artifact_owner}}"
+      with_items:
+        - "{{init_cql_file}}"
+        - "{{init_cql_file}}.meta"
+
+    - name: "run cql file: {{init_cql_file}}"
+      shell: "{{cassandra_sql_cmd}} -k {{keyspace_id}} -f {{cql_script_location}}/{{init_cql_file}} "
+      register: results
+

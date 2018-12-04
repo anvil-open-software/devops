@@ -1,0 +1,44 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+
+  # upgrade to latest version of Zeppelin from apache
+
+# to run locally:
+# ansible-playbook -i /dematic/gitlab/devops-config/ansible/roles/zeppelin/inventory/zeppelin-dev install-zeppelin.yml --private-key /dematic/keys/google/gcp-devops -u spark
+
+
+- name: "Install Apache zeppelin or update with newer version"
+  hosts: zeppelin
+  become: yes
+
+  vars:
+      download_url: "{{zeppelin_download_url}}"
+  tasks:
+    - block:
+      - name: "Create zeppelin directories {{zeppelin_base}}"
+        file: path={{zeppelin_base}} state=directory owner={{zeppelin_user}} group={{zeppelin_user}}
+        become: yes
+
+      - name: "completely wipe out old version to start from scratch {{zeppelin_base}}/{{zeppelin_fqn_version}}"
+        file: path={{zeppelin_base}}/{{zeppelin_version}} state=absent
+
+      - name: "Unarchive {{zeppelin_download_url}} to {{zeppelin_base}} if {{zeppelin_version}} does not exist"
+        unarchive: src={{zeppelin_download_url}} dest={{zeppelin_base}} copy=no creates=no owner={{zeppelin_user}} group={{zeppelin_user}}
+
+      - include: ../../../common/tasks/update-symlink.yml
+        vars:
+          link_target_dir: "{{zeppelin_latest}}"
+          link_source_dir: "{{zeppelin_base}}/{{zeppelin_fqn_version}}"
+      tags:
+      - install-zeppelin
+
+
+    - include: tasks/install-nginx-log-debugger.yml
+      when: install_nginx_log_debugger
+      tags:
+        - install-nginx-log-debugger
+
+
+
+
+

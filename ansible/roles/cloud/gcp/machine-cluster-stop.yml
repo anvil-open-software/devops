@@ -1,0 +1,44 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+# to run locally:
+# ansible-playbook -i /dematic/git/devops-config/ansible/roles/kafka/inventory/kafka-dev-cluster -c local  machine-cluster-stop.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+
+ # stop machine instances based on cluster tag filter criteria. will wait if any of them are in stopped state.
+ # IMPORTANT- TAG BASED, all of the TAG MUST be SHUTDOWN, not by gce_cluster_size like startup
+ # caller inputs:
+ # cluster_tag and cluster_name
+
+ # actual gcloud command is using something like:
+#  gcloud compute instances list --format='csv(status,name,id)' --filter='metadata.kafka-producer-id:dev'
+##
+
+  vars_files:
+    - "{{gcp_project_var_file}}"
+  vars:
+
+    machine_instanceid_cmd:  "{{gcloud_instances_command}} list --format='csv(name)' {{gcp_cluster_filter_parms}}"
+    machine_ipaddress_cmd:  "{{gcloud_instances_command}} list --format='csv(INTERNAL_IP)' {{gcp_cluster_filter_parms}}"
+    machine_status_cmd:  "{{gcloud_instances_command}} list --format='csv(status,name,id)' {{gcp_cluster_filter_parms}}"
+
+  tasks:
+
+    - debug: msg="{{machine_instanceid_cmd}}"
+    - name: Get all  instance names with matching cluster id, remove first line which is title
+      shell: " {{machine_instanceid_cmd}} | {{flatten_lines_to_spaces_cmd}} "
+      register: result
+    - set_fact: instanceids="{{result.stdout}}"
+
+    - name: Echo instance ids
+      debug: msg="{{ instanceids }}"
+
+    # todo stop instances with a flat list...
+
+    - name: Stop machine instances matching filter. Note gcloud api waits until machines are fully stopped.
+      shell: "{{gcloud_instances_command}} stop --zone {{gcp_zone}} {{instanceids}} "
+      register: result
+    - debug: var=result

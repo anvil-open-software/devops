@@ -1,0 +1,41 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: all
+  become: yes
+
+# to run locally
+# ansible-playbook -i ../../../../test/inventory/kafka-producer install-gnu-parallel.yml --private-key /dematic/keys/devops.pem -u devops
+
+
+
+  tasks:
+
+    # for debian 8, did not test ubuntu
+    - block:
+      - name: "install perl dependencies "
+        apt: name=perl state=latest
+      - apt: name=bzip2 state=latest
+      - name: "Install gnu parallel in /usr/local/bin "
+        shell: "export HOME=/usr/local; (wget pi.dk/3 -qO - ||  curl pi.dk/3/) | bash"
+        register: result
+      - debug: var=result
+
+      when: ansible_distribution=='Debian' or ansible_distribution=='Ubuntu'
+
+    - block:
+      - name: "install perl dependencies "
+        yum: name=perl state=latest
+      - name: "Install gnu parallel from linuxsoft"
+        yum: name="http://linuxsoft.cern.ch/cern/centos/7/cern/x86_64/Packages/parallel-20150522-1.el7.cern.noarch.rpm"
+      when: ansible_distribution != 'Debian' and ansible_distribution != 'Ubuntu'
+
+
+
+      # use  --no-notice to clear licensing complaints
+      # shell: "'will cite' | parallel --bibtex"
+
+
+
+
+
+

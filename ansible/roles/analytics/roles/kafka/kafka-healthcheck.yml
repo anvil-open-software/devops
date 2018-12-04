@@ -1,0 +1,14 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# ansible-playbook -i ../../../../test/inventory/kafka kafka-healthcheck.yml --private-key /dematic/keys/devops.pem -u kafka
+
+
+- name: test system is up by creating a topic with 3 replications unless trying not to start from scratch
+  hosts: zookeeper-nodes
+  run_once: true
+  tasks:
+  - include: tasks/kafka-manage-topic.yml kafka_topic=devops-healthcheck \
+       kafka_topic_replication_factor=3 kafka_num_partitions=10 drop_topic=true create_topic=true
+    register: result
+
+  - debug: var=result
+    when: result is defined

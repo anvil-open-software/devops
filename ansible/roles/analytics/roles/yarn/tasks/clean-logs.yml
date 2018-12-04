@@ -1,0 +1,11 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+- name: clean up work and log directories
+  file: path={{yarn_log_dir}} state=absent
+  when: (clean_log_files is defined) and (clean_log_files=="true")
+- file: path={{yarn_log_dir}} state=directory owner=spark
+
+- name: clean up temp directories
+  shell: rm -rf /tmp/Jetty_*
+- shell: rm -rf /tmp/spark-*-*
+

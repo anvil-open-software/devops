@@ -1,0 +1,25 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- name: Configure prometheus server targets
+  hosts: prometheus
+  become: yes
+
+  vars:
+    prometheus_config_dir: "/etc/prometheus"
+  tasks:
+  - name: "Template out configuration files"
+    template: src="{{prometheus_conf_src_dir}}/templates/conf/{{ item }}.j2" dest="{{prometheus_config_dir}}/{{item}}" mode=0640 owner="prometheus"
+    with_items:
+      - prometheus.yml
+
+  - name: "update env profile.d/prometheus.sh"
+    copy: src="files/etc/profile.d/prometheus.sh" dest="/etc/profile.d" mode="a+rx"
+
+  - name: "update with latest file targets"
+    copy: src="{{prometheus_conf_src_dir}}/files/conf/file_sd" dest="{{prometheus_config_dir}}" owner="prometheus"
+
+  # quicker to restart than do a post right now. try separate stop start, restart won't fail even with error
+  - name: "restart service"
+    service: name=prometheus state=stopped enabled=yes
+  - service: name=prometheus state=started enabled=yes
+

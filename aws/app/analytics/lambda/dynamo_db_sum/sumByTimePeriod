@@ -1,0 +1,50 @@
+
+
+console.log('Loading function');
+var AWS = require('aws-sdk'); 
+var dynamodb = new AWS.DynamoDB({apiVersion: '2012-08-10'});  
+exports.handler = function(event, context) {
+    event.Records.forEach(function(record) {
+        console.log(record.eventID);
+        console.log(record.eventName);
+        //console.log('DynamoDB Record: %j', record.dynamodb);
+
+        // need to dig out from record
+        var tableName =  'sa15_Event_Aggregator';
+        var greaterthan= '2015-09-16T11:09';
+        var lessthan='2015-09-16T14:09';
+        
+        var params = {
+          TableName: tableName, 
+          ConsistentRead: true,
+          // since bucket and count are reserved words, we have to substitute with #
+          // we are also forced to do a filter scan since KeyConditionExpression, hash only allows equals
+          FilterExpression: "#bucket_field BETWEEN :run_start_date and :run_end_date ",
+          ProjectionExpression: "#count_field",
+          ExpressionAttributeNames: {
+                 '#bucket_field': 'bucket' ,
+                 '#count_field' : 'count'
+              }, 
+          ExpressionAttributeValues: { 
+                 ':run_start_date': {'S': greaterthan },
+                 ':run_end_date'  : {'S': lessthan },
+                                        }
+        };
+
+        dynamodb.scan(params, function(err, data) {
+          var total_count = 0;
+          //console.log(JSON.stringify(data, null, 2));
+
+          console.log("Processing count with total rows: " + data.Count);
+          for (var index in data.Items) {
+                total_count = total_count + Number(data.Items[index].count.N);
+          }
+
+          console.log("TOTAL COUNT: " + total_count);
+          // todo need to update this somewhere... probably dynamo row....
+          if (err) console.log(err, err.stack);
+             else context.succeed("Successfully took total aggregation count:" + total_count);
+        });
+    });
+    
+};

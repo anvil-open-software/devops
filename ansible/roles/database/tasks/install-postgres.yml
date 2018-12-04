@@ -1,0 +1,33 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+   - name: Install postgres rpm
+     yum: name=http://yum.postgresql.org/9.4/redhat/rhel-6-x86_64/pgdg-ami201503-94-9.4-1.noarch.rpm
+
+   - name: Install postgres
+     yum: name=postgresql94-server
+          state=installed
+
+   - name: Initiate database
+     command: service {{postgres_service}} initdb
+              creates={{postgres_folder}}/data/postgresql.conf
+
+   - name: Start PostgreSQL and enable service to run at boot
+     service: name={{postgres_service}}
+              enabled=yes
+              state=started
+
+   - name: Ensure PostgreSQL is listening on all ports
+     lineinfile: dest={{postgres_folder}}/data/postgresql.conf
+       regexp='^#?listen_addresses\s*='
+       line="listen_addresses = '*'"
+       state=present
+     notify: restart {{postgres_service}}
+
+   - lineinfile: dest=/var/lib/pgsql/data/pg_hba.conf
+                 regexp='host\s+all\s+all\s+127.0.0.1/32\s+md5'
+                 line='host all all 0.0.0.0/0 md5'
+                 insertbefore=BOF
+     notify: restart {{postgres_service}}
+
+ # handlers:
+ #  - name: restart postgresql
+ #    service: name={{postgres_service}}  state=restarted

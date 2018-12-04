@@ -1,0 +1,17 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+- name: mount nfs drive
+  hosts: all
+  become: yes
+
+  tasks: 
+    - name: "make sure nfs-common installed"
+      apt: name=nfs-common state=installed
+    - block:
+      - file: path="{{shared_nfs_base}}" state=directory
+      - name: "nfs mount to {{nfs_server}}"
+        mount:
+          name: "{{shared_nfs_base}}"
+          src: "{{nfs_server}}:/data"
+          fstype: nfs
+          opts: noatime
+          state: mounted

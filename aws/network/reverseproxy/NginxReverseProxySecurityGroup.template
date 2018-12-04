@@ -1,0 +1,40 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Security group for nginx as reverse proxy to forward to private Jenkins",
+
+  "Parameters" : {
+
+    "VPC" : {
+      "Description" : "Target VPC",
+      "Type": "AWS::EC2::VPC::Id"
+    },
+
+    "ServerSSHAccess" : {
+      "Description" : "CIDR IP range allowed to access to SSH into the instance",
+      "Type" : "String",
+      "MinLength": "9",
+      "MaxLength": "18",
+      "Default" : "10.0.0.0/16",
+      "AllowedPattern" : "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+      "ConstraintDescription" : "must be a valid CIDR range of the form x.x.x.x/x."
+    }
+  },
+
+  "Resources" : {
+    "WebServerSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable jenkins HTTP access via port 8080, need to clamp down on whitelist",
+        "VpcId" : { "Ref" : "VPC" },
+        "SecurityGroupIngress" : [
+          {"IpProtocol" : "tcp", "FromPort" : "9090", "ToPort" : "9090", "CidrIp" : "0.0.0.0/0"},
+          {"IpProtocol": "tcp", "FromPort": "22", "ToPort": "22", "CidrIp": { "Ref": "ServerSSHAccess" } }
+        ],
+        "Tags" : [
+          { "Key" : "Name", "Value" : "ReverseProxyForJenkins" }
+        ]
+      }
+      }
+  }
+}

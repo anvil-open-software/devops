@@ -1,0 +1,5 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+    - name: list all keyspaces for debugging
+      shell: cqlsh {{cassandra_host}} {{cassandra_creds}} -e "describe keyspaces;"
+      register: results
+    - debug: var=results.stdout_lines

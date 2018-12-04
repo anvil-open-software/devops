@@ -1,0 +1,33 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+# generic wrapper to create a cluster based on
+# app_category  i.e. dsp
+# app_name  i.e. yarn
+# app_cluster_name i.e. dev or demo
+# cluster_member_type i.e. master, node, broker
+# cluster_member_private_ips_csv - comma separated list of private ip addresses
+
+# ansible-playbook -i $DEVOPS_CONFIG_PATH/ansible/roles/kafka/inventory/azure-kafka-devops-datadisk-test -c local azure-provision-data-disks.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+# TODO shutdown machine before removing disk
+
+- hosts: localhost
+  become: no
+  vars:
+     vm_name_prefix: "{{app_name}}-{{app_cluster_name}}-{{app_cluster_member_type}}"
+     storage_account_type_default: "Premium_LRS"
+
+  tasks:
+    - include_vars: "{{azure_global_var_file}}"
+    - include_vars: "{{azure_resource_group_var_file}}"
+    - set_fact: cluster_member_private_ips="{{cluster_member_private_ips_csv.split(',')}}"
+    - set_fact: cluster_member_names="{{cluster_member_names_csv.split(',')}}"
+
+# # todo fix get vm name from CLI, probably easiest to use tag from ip address
+
+    - name: "Remove Disks"
+      include: tasks/azure-remove-data-disks.yml
+      vars:
+        - mount_path: "/data_1"
+        - mount_src: "/dev/sdc"
+

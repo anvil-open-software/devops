@@ -1,0 +1,10 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+apache_mirror: http://mirror.cc.columbia.edu/pub/software/apache
+zookeeper_version: 3.4.8
+zookeeper_full_version_name: "zookeeper-{{zookeeper_version}}"
+
+zk:
+  data_dir: /media/ephemeral0/zookeeper
+  install_dir: "/opt/zookeeper"
+  tick_time: 2000
+  download_url: "{{apache_mirror}}/zookeeper/{{zookeeper_full_version_name}}/{{zookeeper_full_version_name}}.tar.gz"

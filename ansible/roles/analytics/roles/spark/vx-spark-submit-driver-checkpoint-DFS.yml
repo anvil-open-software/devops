@@ -1,0 +1,35 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+ # local testing
+ # ansible-playbook -i /dematic/gitlab/devops-config/ansible/roles/spark/inventory/yarn-devops-ccmetrics submit-yarn-spark-driver.yml --private-key /dematic/keys/google/gcp-devops -u spark
+
+
+#
+# Two use cases
+# 1. launch driver on YARN using HDFS to checkpoint
+# 2. launch driver on Spark cluster using HDFS checkpoint
+#
+# Case 2 for debugging and diagnostics
+#
+
+- name: cleanup checkpoints from Hadoop DFS if delete_checkpoint_dir is true. Even for SPARK standalone you need DFS.
+  hosts: spark
+  tasks:
+    - include_vars: ../yarn/group_vars/yarn
+
+    - name: "delete checkpoint dir for driver app if delete_checkpoint_dir is true"
+      shell: "{{hadoop_bin}}/hdfs dfs -rm -r /user/spark/checkpoints/{{spark_driver_key}}/{{spark_checkpoint_launch_key}}"
+      when: delete_checkpoint_dir
+      register: results
+      ignore_errors: yes
+    - debug: var=results
+
+- name: "submit driver if YARN for target version {{spark_default_version}}"
+  include: vx-spark-submit-ss-driver.yml spark_target_version_dir="{{spark_base}}/{{spark_default_version}}"
+  when: spark_execution_cluster_type=="YARN"
+
+- name: "Submit driver on {{spark_execution_cluster_type}}  for target version {{spark_default_version}}"
+  include: vx-spark-submit-driver.yml spark_target_version_dir="{{spark_base}}/{{spark_default_version}}" \
+            spark_submit_mode="--master spark://{{cluster_master_ip}}:{{spark_master_port}} --deploy-mode {{spark_deploy_mode|default(spark_default_deploy_mode)}} "
+  when: spark_execution_cluster_type=="SPARK_STANDALONE"
+

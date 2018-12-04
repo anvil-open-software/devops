@@ -1,0 +1,35 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# ansible-playbook -i  /dematic/git/devops-config/ansible/roles/validation/inventory/dev-cluster \
+# validate-relaunch-after-kill-yarn-application-master.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+# kills the YARN application Master and then checks to see if it comes back up.
+
+- name: "Shutdown "
+  hosts: yarn-slaves
+  become: true
+  # must run as spark user since jps only works for process owners
+  become_user: spark
+
+  tasks:
+  # unfortunately --app-id application_1494024523517_0001, so we just target one executor id
+
+    - include: tasks/kill-jvm-by-name.yml
+      vars:
+        jvm_class_name: "org.apache.spark.executor.CoarseGrainedExecutorBackend"
+        spark_class_name: "executor-id 2"
+      tags:
+        - kill_spark_executor_jvm
+
+# todo- need to take previous metric, and make sure it processes the next job.
+
+- name: "Make sure master still running successfully by checking metrics for streaming job"
+  include: ../yarn/validation/get_spark_event_stat_via_yarn.yml
+  vars:
+    spark_target_metric: "driver.DAGScheduler.job.allJobs"
+    spark_driver_app_name: ""
+    yarn_status_retries: 15
+    yarn_status_delay_in_seconds: 15
+    spark_stat_retries: 20
+    spark_stat_delay_interval_in_seconds: 10
+  tags:
+    - check_successful_spark_driver_running

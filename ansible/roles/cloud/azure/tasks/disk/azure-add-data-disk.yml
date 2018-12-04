@@ -1,0 +1,38 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# DO NOT use managed_by which does not support caching options
+- name: "Create primary non-boot data disks for {{cluster_member_names}} of {{vm_datadisk_size}}GB"
+  azure_rm_managed_disk:
+    name: "{{item}}-data-disk-{{data_disk_index}}"
+    state: present
+    location: "{{azure_location}}"
+    resource_group: "{{azure_resource_group}}"
+    disk_size_gb: "{{vm_datadisk_size}}"
+    storage_account_type: "{{azure_storage_account_type|default(storage_account_type_default)}}"
+    create_option: "empty"
+    auth_source: "msi"
+    subscription_id: "{{azure_subscription_id}}"
+    os_type: "linux"
+  with_items: "{{cluster_member_names}}"
+  async: "{{async_task_completion_seconds}}"
+  poll: 0
+  register: async_results
+
+- name: "Check async results for disk creation"
+  include: ../check-async-results.yml
+
+- name: "attach disk with host caching options"
+  shell: "az vm disk attach
+            --disk {{item}}-data-disk-{{data_disk_index}}
+            --resource-group {{azure_resource_group}}
+            --vm-name {{item}}
+            --caching {{azure_disk_host_caching|default(azure_disk_host_caching_default)}}
+            --lun 0"
+  with_items: "{{cluster_member_names}}"
+  async: "{{async_task_completion_seconds}}"
+  poll: 0
+  register: async_results
+
+- name: "Check async results for az vm disk attach"
+  include: ../check-async-results.yml
+

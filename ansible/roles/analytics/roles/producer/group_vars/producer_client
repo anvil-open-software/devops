@@ -1,0 +1,22 @@
+
+
+nexus_target_version_default: "0.1.4-SNAPSHOT"
+nexus_repo_default: "snapshots"
+
+artifact_repo_group_id: 'com.dematic.labs'
+artifact_id: toolkit
+
+producer_client_location: "/opt/simulators"
+producer_launch_config_dir: "{{producer_client_location}}/conf"
+
+# use external producer.yml file
+
+producer_client_user: devops
+
+# put log to ephemeral drive
+producer_log_dir: "/mnt/simulator/log"
+
+# allows for the job id to be used to uniquely identify device
+parallel_seq_id: !unsafe '{#}'
+
+

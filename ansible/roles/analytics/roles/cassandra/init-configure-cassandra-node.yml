@@ -1,0 +1,39 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: cassandra
+  become: yes
+
+  # initial configuration for cassandra including install when install_cassandra is set.
+  # use purge_cassandra_data to start from scratch
+
+  # ansible-playbook -i ../../../../test/inventory/cassandra-centos init-configure-cassandra-node.yml --private-key /dematic/keys/devops.pem -u centos
+
+ # ansible-playbook -i /dematic/git/devops-config/ansible/roles/cassandra/inventory/cassandra-dev  -c local init-configure-cassandra-node.yml -u devops --private-key /dematic/keys/google/gcp-devops
+
+  tasks:
+    - block:
+      - name: "install cassandra if install_cassandra true"
+        include: tasks/install-cassandra.yml
+      # do not have to explicitly create cassandra user which is taken care of by the install.
+      when: install_cassandra is defined and install_cassandra=="true"
+
+    - block:
+      - shell: "rm -rf /var/log/cassandra/*"
+      - name: "blow out cassandra data directory"
+        shell: "rm -rf {{cassandra_root_dir}}"
+      when: purge_cassandra_data is defined and purge_cassandra_data=="true"
+      #  file: path="{{cassandra_root_dir}}" state=absent
+    - file: path="{{cassandra_root_dir}}" state=directory recurse=yes mode="u+rw,g+rw,o-rw" owner=cassandra group=cassandra
+
+    - name: "change cassandra_conf_dir to /etc/cassandra for Debian"
+      set_fact: cassandra_conf_dir="/etc/cassandra"
+      when: ansible_distribution=='Debian'
+
+    - name: "update cassandra.yaml and other config"
+      set_fact: cassandra_broadcast_address="{{inventory_hostname}}"
+    - template: src="templates/conf/{{item}}.j2" dest="{{cassandra_conf_dir}}/{{item}}"
+      with_items:
+          - cassandra.yaml
+          - cassandra-env.sh
+      when: configure_cassandra is defined and configure_cassandra=="true"
+

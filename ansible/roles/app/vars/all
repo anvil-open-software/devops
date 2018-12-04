@@ -1,0 +1,28 @@
+
+#
+# check for latest jdk8 linux x64
+#
+
+# this gets passed in from jenkins
+jdk_version_default: jdk1.8.0_191
+download_url_default: http://download.oracle.com/otn-pub/java/jdk/8u191-b12/2787e4a523244c269598db4e85c51e0c/jdk-8u191-linux-x64.tar.gz
+java_base_dir: /opt/jdk
+download_folder: /opt/jdk
+
+java_archive: "{{download_folder}}/jdk-8-linux-x64.tar.gz"
+
+java_fqn: "{{download_folder}}/{{jdk_version|default(jdk_version_default)}}"
+latest_java: "/opt/jdk_latest"
+
+#
+# check for latest at https://www.scala-lang.org/download/
+# currently latest is 2.12.2
+#
+scala_version: "2.11.8"
+scala_version_name: "scala-{{scala_version}}"
+scala_archive_file: "{{scala_version_name}}.tgz"
+scala_download_url: "http://www.scala-lang.org/files/archive/{{scala_archive_file}}"
+
+scala_lib_path: "/opt/scala"
+scala_lib_path_target: "{{scala_lib_path}}/{{scala_version_name}}"
+scala_link_target: "/usr/bin"

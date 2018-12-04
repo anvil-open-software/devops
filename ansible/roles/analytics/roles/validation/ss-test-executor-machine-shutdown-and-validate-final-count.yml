@@ -1,0 +1,38 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# test case where machine with Spark executors without master is shutdown in the middle of a run waiting after {{wait_before_kill_duration_in_minutes}}.
+# Checks to see if YARN restarts. Then will wait out the rest of the run
+#
+
+# ansible-playbook -i  /dematic/git/devops-config/ansible/roles/validation/inventory/dev-cluster \
+# test-executor-machine-shutdown-and-validate-final-count.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+- name: "STEP1: Pause before machine shutdown"
+  hosts: localhost
+  tasks:
+    - name: "sleep {{wait_before_kill_duration_in_minutes}} minutes"
+      include: tasks/sleep_before_kill.yml
+      tags:
+        - sleep_before_kill
+
+- name: "STEP2: Shutdown machine instance WITHOUT YARN application master and with executors"
+  hosts: yarn-slaves
+  become: true
+  # run one at a time to find the first machine to kill, simply running it on the first two machines
+  serial: 1
+  tasks:
+    - include: tasks/kill-machine-instance-without-yam.yml
+      vars:
+          jvm_class_name: "{{yarn_am_class_name}}"
+          spark_class_name: "{{spark_driver_key}}"
+      tags:
+        - kill-machine-instance
+
+# need to wait and verify that machine instance has been killed.
+
+- name: "STEP3: Wait for rest of the batches to complete to validate counts"
+  include: ss-test-uninterrupted-run-validate-final-count.yml
+  vars:
+    run_duration_in_minutes: "{{second_run_duration}}"
+    spark_driver_run_uninterrupted: false
+  tags:
+    - test-uninterrupted-run-validate-final-count

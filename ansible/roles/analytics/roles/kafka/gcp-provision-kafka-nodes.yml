@@ -1,0 +1,59 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# to run locally:
+# ansible-playbook -i ../../../../test/inventory/gcp/kafka-dev -c local  gcp-provision-kafka-nodes.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+# ansible-playbook -i ../../../../test/inventory/gcp/kafka-dev-broker-provision -c local  gcp-provision-kafka-nodes.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+
+#
+# provisions a kafka or kafka zookeeper node
+# sent from jenkins:
+    # kafka_instance_type=KAFKA_ZOOKEEPER or KAFKA
+    # cluster_member_private_ips
+    # kafka_cluster_name: "dev"
+
+---
+- hosts: localhost
+  become: no
+  vars:
+    gcloud_create_parms:  " {{gcloud_default_create_parms}} \
+                             {{gcp_image_parms}} \
+                             --boot-disk-size {{gcp_boot_disk_size_in_gb}} \
+                             --boot-disk-type {{gcp_boot_disk_type}} \
+                             --tags 'kafka','{{private_instance_nat_tag}}' \
+                             --metadata 'kafka-cluster-id={{kafka_cluster_name}},app={{kafka_instance_type}}' "
+
+
+    #  KAFKA_CLUSTER_ID: "{{kafka_cluster_name}}"
+
+  tasks:
+
+   # vars_files appears not to work in 2.1 for relative file path no longer work in vars_files in 2.1.
+    - include_vars: "../../../cloud/gcp/group_vars/all"
+    - include_vars: "{{gcp_project_var_file}}"
+
+    - set_fact: kafka_instance_name_prefix="broker"
+      when: kafka_instance_type=="KAFKA"
+    - set_fact:  kafka_instance_name_prefix="zookeeper"
+      when: kafka_instance_type=="KAFKA_ZOOKEEPER"
+    - debug: var=kafka_instance_type
+
+    - debug: msg="{{gcloud_create_command}}  kafka-{{kafka_cluster_name}}{{kafka_instance_name_prefix}}-10-102-x-x {{gcloud_create_parms}}"
+    # note you cannot loop over blocks and you don't have delayed
+    - name: create compute instance
+      command:  "{{gcloud_create_command}} kafka-{{kafka_cluster_name}}-{{kafka_instance_name_prefix}}-{{ item.replace('.','-') }} \
+                     --private-network-ip  {{ item }} {{gcloud_create_parms}}"
+      with_items: "{{cluster_member_private_ips.split(',')}}"
+      register: results
+    - debug: var=results
+
+    # todo see the async approach wince above with_items will go against localhost and will be sequential not parallel execution
+    # http://toroid.org/ansible-parallel-dispatch
+
+    - name: Wait for SSH to come up
+      wait_for: host="{{ item }}" port=22 delay=10 timeout=320 state=started
+      with_items: "{{cluster_member_private_ips.split(',')}}"
+
+
+

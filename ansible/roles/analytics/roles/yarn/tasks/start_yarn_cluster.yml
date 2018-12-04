@@ -1,0 +1,69 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+- name: Start dfs cluster- namednode and data nodes
+  shell: "{{hadoop_sbin}}/start-dfs.sh"
+  register: dfs_start
+- debug: msg="{{dfs_start.stdout_lines}}"
+
+# now that we don't use assembly jar for 2.0, we need to explicitly test file write
+- block:
+  - name: Validate dfs works by making a test directory and copying a local file over
+    shell: "{{hadoop_bin}}/hdfs dfs -mkdir -p /user/devops/validation/"
+  - name: Create tmp file to put into dfs
+    shell: "echo 'hdfs file test' > /tmp/hdfs.test"
+  - name: overwrite a file
+    shell: "{{hadoop_bin}}/hdfs dfs -put -f /tmp/hdfs.test /user/devops/validation/"
+
+  - name: "get dfsadmin report"
+    shell: "hadoop dfsadmin -report -live"
+    register: result
+  - debug: var=result
+  # todo make sure each node groups['yarn'] is in minus master
+
+
+
+  - name: "Check Hadoop Manager UI shows successful deployed"
+    # not using get_url since I want to look directly at output without putting it to file.
+    set_fact: hadoop_mgr_url="http://{{ inventory_hostname }}:{{hadoop_mgr_ui_port}}/dfshealth.html#tab-datanode"
+  - debug: var=hadoop_mgr_url
+  - shell: "curl {{hadoop_mgr_url}}"
+    register: result
+    until: result.stdout.find("Datanode Information") != -1
+    retries: "12"
+    delay: "10"
+  - debug: var=result
+  tags:
+    - validate-hdfs
+
+- name: Start yarn cluster
+  shell: "{{hadoop_sbin}}/start-yarn.sh"
+  register: yarn_start
+- debug: msg="{{yarn_start.stdout_lines}}"
+
+- block:
+  - set_fact: yarn_mgr_url="http://{{ inventory_hostname }}:{{yarn_mgr_ui_port}}/cluster/nodes"
+  - name: "Check YARN Manager UI shows successful deployed looking for "
+    # not using get_url since I want to look directly at output without putting it to file.
+    shell: "curl {{yarn_mgr_url}}"
+    register: result
+    until: result.stdout.find("RUNNING") != -1
+    retries: "12"
+    delay: "10"
+  - debug: var=result
+
+  - name: "Debug yarn node list"
+    shell: "yarn node --list"
+    register: result
+  - debug: var=result
+  # we want to use yarn node --status  but we need the dynamically assigned port...
+  - name: "assert each slave node {{item}}  is in the yarn node list"
+    fail: msg="Slave node {{item}} not found in yarn node list"
+    when: validate_each_node_running and result.stdout.find(item) != -1
+    with_items: "{{groups['yarn-slaves']}}"
+
+  tags:
+    - validate-yarn-cluster
+
+
+
+

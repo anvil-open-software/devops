@@ -1,0 +1,32 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+
+---
+- hosts: influxdb
+  become: yes
+  vars:
+    influxdb_version: "1.5.4"
+    influxdb_download_url: "https://dl.influxdata.com/influxdb/releases/influxdb_{{influxdb_version}}_amd64.deb"
+    chronograf_version: "1.5.0.1"
+    chronograf_url: "https://dl.influxdata.com/chronograf/releases/chronograf_{{chronograf_version}}_amd64.deb"
+
+  tasks:
+    - name: "install influxdb"
+      shell: "wget {{influxdb_download_url}}"
+    - shell: "dpkg -i influxdb_{{influxdb_version}}_amd64.deb"
+
+    - name: "install chronograf"
+      shell: "wget {{chronograf_url}}"
+    - shell: "dpkg -i chronograf_{{chronograf_version}}_amd64.deb"
+    - shell: "systemctl start chronograf"
+
+    - name: "make default dir {{influxdb_base_path_default}}"
+      file: path="{{influxdb_base_path_default}}" state=directory owner=influxdb group=influxdb
+    - name: "Template influx configuration files"
+      template: src="templates/etc/influxdb/{{ item }}.j2" dest="/etc/influxdb/{{item}}"
+      with_items:
+        - influxdb.conf
+
+    - name: "Restart the InfluxDB service"
+      service: name=influxdb state=restarted
+

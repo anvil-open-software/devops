@@ -1,0 +1,48 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+- name: first get artifacts locally from repo
+  hosts: cassandra
+  serial: 1
+  # note only the seeds need to run one at a time but we have mostly seeds
+  become: yes
+
+  #
+  # currently useful for running cluster one at a time
+  # ansible-playbook -i ../../../../test/inventory/cassandra-dev start-cassandra-node.yml --private-key /dematic/keys/google/gcp-devops  -u devops
+
+  # This SCRIPT currently DOES NOT support restarts and is meant to be run to start a system from scratch
+
+  tasks:
+
+    - debug: var=ansible_distribution
+
+    - name: start cassandra service for non-Centos using standard service module
+      service: name=cassandra state=started
+      become: yes
+      when: ansible_distribution != 'CentOS'
+
+    - block:
+      - name: start cassandra service for centos using systemctl directly as service module does not work
+        command: "systemctl start cassandra"
+        become: yes
+      - command: "systemctl status cassandra"
+        register: result
+      - debug: var=result.stdout
+      when: ansible_distribution == 'CentOS'
+
+
+      # on centos7, service module fails as it needs systemctl instead of systemd but the command is smart enough figure that out...
+      # service: name=cassandra state=started
+
+    - name: wait until nodetool status starts with "UN" = Up and Normal
+      shell: "nodetool  status | grep {{inventory_hostname}}"
+      ignore_errors: yes
+      register: result
+      until: (result.stdout.find("UN") == 0)
+      retries: "50"
+      delay: "3"
+
+    - name: debug nodetool
+      shell: "nodetool status"
+      register: result
+    - debug: var=result
+

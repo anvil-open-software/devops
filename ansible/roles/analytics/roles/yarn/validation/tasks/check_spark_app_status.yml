@@ -1,0 +1,30 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# queries spark and returns key metrics
+
+  - set_fact: spark_json_url="{{target_tracking_url}}/metrics/json"
+  - debug: var=spark_json_url
+  - name: Get  SPARK metrics
+    uri: url="{{spark_json_url}}" return_content=yes
+    register: spark_response
+
+  - set_fact: spark_metric_json="{{spark_response.json.gauges}}"
+
+  #- set_fact: metric_key="{{target_yarn_app_id}}.driver.{{spark_app_name}}.StreamingMetrics.streaming.totalProcessedRecords"
+
+  # cannot seem to be able to just pick out the right key (as there is dot notation in there we need to add
+  #   quotes which will not be taken away by jinja
+  # - debug: var="{{spark_metric_json[metric_key]}}"
+
+  # instead of trying to bring up complex key, just do a simple search for now. it's fast and we only do it once.
+  - set_fact: driver_totalProcessedRecords="{{item.value.value|int}}"
+    with_dict: "{{spark_metric_json}}"
+    when: item.key.find("StreamingMetrics.streaming.totalProcessedRecords")>-1
+
+  - debug: var=driver_totalProcessedRecords
+
+
+
+
+
+
+

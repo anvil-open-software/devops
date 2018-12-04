@@ -1,0 +1,4 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+- name: copy etc host file
+    # careful this has to be redone as jenkins needs loopback
+    copy: src=roles/common/files/hosts dest=/etc/hosts

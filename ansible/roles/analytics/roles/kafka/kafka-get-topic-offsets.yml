@@ -1,0 +1,26 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# Gives the summed partiion offset of given {{kafka_topic}} and {{kafka_bootstrap_servers}}
+# This is only used more for testing the script, the task will be used in a validation play
+#
+# variable kafka_summed_partition_offset set
+#
+# ansible-playbook -i  /dematic/git/devops-config/ansible/roles/kafka/inventory/kafka-dev-cluster kafka-get-topic-offsets.yml --private-key /dematic/keys/google/gcp-devops -u kafka
+
+---
+- name: "populate kafka_summed_partition_offset "
+  hosts:  kafka-validator
+  run_once: true
+  vars:
+    temp_offset_file: "/tmp/{{kafka_topic}}_offsets.out "
+
+  tasks:
+    - include: tasks/kafka-topic-set-sum-partition-offsets.yml
+
+- name: "fetch kafka offset to local variable "
+  hosts:  localhost
+  tasks:
+    # - debug: var=hostvars['localhost']
+    - set_fact: kafka_summed_partition_offset="{{ hostvars[item]['kafka_summed_partition_offset'] }}"
+      with_inventory_hostnames: kafka-validator
+  tags:
+     - transfer_stored_offset_to_local

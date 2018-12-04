@@ -1,0 +1,24 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+# to run locally:
+# ansible-playbook -i /dematic/gitazure/devops-config/ansible/roles/kafka/inventory/kafka-devops-cluster -c local  machine-cluster-start-async.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+# change machine instances sizes on cluster tag filter criteria. MUST have called deallocated machine-cluster-stop.yml
+# caller inputs:
+# cluster_tag and cluster_name
+
+  tasks:
+    - name: "Get all instance names with matching {{cluster_tag}}={{cluster_name}}"
+      shell: az resource list --tag "{{cluster_tag}}={{cluster_name}}" --query "[?type=='Microsoft.Compute/virtualMachines'].id" -o tsv
+      register: result
+    - set_fact: instanceids="{{result.stdout.split('\n')|sort}}"
+
+    - name: "instances types will be changed to {{azure_vm_size}}"
+      include: tasks/azure-vm-resize.yml
+      when: change_vm_instance_type
+
+

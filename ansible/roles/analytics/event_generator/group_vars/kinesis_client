@@ -1,0 +1,27 @@
+
+nexus_target_version_default: "1.0.2-SNAPSHOT"
+nexus_repo_default: "snapshots"
+
+kinesis_client_location: "/opt/toolkit/eventclient"
+
+# used for maven download
+kinesis_base_jar: "toolkit-{{item}}.jar"
+kinesis_base_fqn: "{{kinesis_client_location}}/{{kinesis_base_jar}}"
+
+kinesis_producer_jar: "toolkit-producer.jar"
+kinesis_producer_fqn: "{{kinesis_client_location}}/{{kinesis_producer_jar}}"
+
+# Key names must be same as class name, just due to downstream node code. Need to fix
+event_producer_dict:
+  KinesisClient:
+    desc: "Kinesis Client Event Generator for aggregator"
+    producer_class: "com.dematic.labs.toolkit.aws.kinesis.KinesisClient"
+  NodeExecutor:
+    desc: "Event Generator for inter arrival times"
+    producer_class: "com.dematic.labs.toolkit.simulators.NodeExecutor"
+
+event_consumer_dict:
+  consumer:
+    desc: "Get Counts from Kinesis"
+    artifact: "toolkit-consumer.jar"
+    classifier: "jar"

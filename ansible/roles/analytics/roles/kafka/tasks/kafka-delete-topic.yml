@@ -1,0 +1,12 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# delete topic if topic exists
+
+- include: kafka-list-topics.yml
+- name: "delete topic {{kafka_topic}} only if exists {{kafka_topic_result.stdout}} "
+  shell: "{{kafka_bin_dir}}/kafka-topics.sh --delete --zookeeper {{kafka_zookeeper_connection}} --topic {{kafka_topic}}"
+  register: result
+  when: (kafka_topic_result.stdout.find(kafka_topic) > -1)
+
+- debug: var=result
+- include: kafka-list-topics.yml

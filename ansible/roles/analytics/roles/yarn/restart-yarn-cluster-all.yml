@@ -1,0 +1,45 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+# to run locally:
+# ansible-playbook -i /dematic/git/devops-config/ansible/roles/YARN/inventory/yarn-devops restart-yarn-cluster-all.yml --private-key /dematic/keys/google/gcp-devops -u spark
+#
+# Restart hadoop and YARN cluster,
+#
+# Refactored plays which were operating on different host groups into a single play
+#
+#
+
+- name: "Stop yarn and DFS"
+  hosts: yarn-master
+  tasks:
+    - include_vars: group_vars/yarn
+    - include: tasks/stop_hadoop_yarn_cluster.yml
+
+- name: "Cleanup and prepare cluster for relaunch"
+  hosts: yarn
+  become: yes
+  tasks:
+    - name: "make sure critical services are running on all nodes"
+      include: tasks/hadoop_precheck.yml
+
+    - name: "clean up logs"
+      include: tasks/clean-logs.yml
+
+    - debug: msg="Deleting all DFS blocks in {{hadoop_temp_drive}} based on reformat_hdfs={{reformat_hdfs}}"
+    - block:
+      - name: "clean up all hadoop dfs blocks on all nodes"
+        file: path={{hadoop_dfs_dir}} state=absent
+      - file: path={{hadoop_temp_drive}} state=absent
+      - file: path={{hadoop_temp_drive}} state=directory owner="{{yarn_user}}" group="{{yarn_user}}"
+      when: (reformat_hdfs is defined and reformat_hdfs=="true")
+
+- name: "Restart DFS and YARN"
+  hosts: yarn-master
+  tasks:
+    - include_vars: group_vars/yarn
+    - name: "Format DFS for first time use if necessary with reformat_hdfs string flag"
+      include: tasks/reformat_dfs.yml
+      when: (reformat_hdfs is defined and reformat_hdfs=="true")
+    - name: "Start DFS and then YARN cluster"
+      include: tasks/start_yarn_cluster.yml
+      when: (start_yarn_cluster is defined and start_yarn_cluster)

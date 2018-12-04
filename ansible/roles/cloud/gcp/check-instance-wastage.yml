@@ -1,0 +1,46 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+# to run locally:
+# ansible-playbook -i /dematic/gitlab/devops-config/ansible/roles/GCP/inventory/local -c local check-instance-wastage.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+
+ # start machine instances based on cluster tag filter criteria. will wait if any of them are in stopped state.
+ # caller inputs:
+ # cluster_tag and cluster_name
+
+ # actual gcloud command is using something like:
+ # gcloud compute --project "dlabs-dev-primary" instances list --filter 'NOT metadata.instance-run-type=ALWAYS_ON AND STATUS=RUNNING'
+
+##
+  vars_files:
+    - "{{gcp_project_var_file}}"
+
+  vars:
+    filter_meta_name: "instance-run-type"
+    filter_meta_value: "ALWAYS_ON"
+    gcp_filter_parms: "--filter 'NOT metadata.instance-run-type={{filter_meta_value}} AND STATUS=RUNNING' "
+    machine_instanceid_cmd:  "{{gcloud_instances_list_command}} --format='csv(name)'  {{gcp_filter_parms}}"
+    machine_ipaddress_cmd:  "{{gcloud_instances_list_command}} --format='csv(INTERNAL_IP)'   {{gcp_filter_parms}}"
+    line_feed: "<br/>"
+    warn_msg: "{{line_feed}} {{line_feed}}  GCEMSGBEGIN {{line_feed}}
+                The following instances that are not tagged as {{filter_meta_value}} are still running
+                  {{line_feed}}  {{instanceids}} {{line_feed}}
+               {{line_feed}} GCEMSGEND {{line_feed}} "
+
+  tasks:
+    - debug: msg="{{machine_instanceid_cmd}}"
+    - name: Get all instance names that are running
+      shell: " {{machine_instanceid_cmd}} "
+      register: result
+    - set_fact: instanceids="{{result.stdout.replace('\n','<br/>')}}"
+
+    - name: "Running instance ids which should NOT be running now "
+      debug: var=instanceids
+
+    - name: "Fail if GCP instances running outside of business hours"
+      fail: msg="{{warn_msg}}"
+      when: instanceids is defined and (instanceids|length > 2 )

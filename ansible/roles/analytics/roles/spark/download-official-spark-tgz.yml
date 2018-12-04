@@ -1,0 +1,18 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: spark
+
+  # downloads and unpacks the latest tgz to /media/ephemeral0/spark_build
+  # use on build on machine with ephemeral drive- much faster
+  # must pass in:
+  #     spark_download_url
+  tasks:
+    - name: Create spark directories
+      file: path={{build_base}} state=directory owner=spark
+      sudo: yes
+
+    - name: Downloading and unpack archive in one go
+      unarchive: src="{{spark_download_url}}" dest="{{build_base}}" copy=no
+      register: unpack_result
+    - debug: var=unpack_result
+

@@ -1,0 +1,22 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: all
+  become: yes
+
+# initial configuration for all including install
+# to run locally:
+# ansible-playbook -i ../../../../test/inventory/all install-zookeeper.yml --private-key /dematic/keys/devops.pem -u ec2-user
+
+  tasks:
+
+    # we have to add this manually since I don't want to put this file at a higher dir level
+    - include_vars: vars/main.yml
+
+    - file: path="{{zk.install_dir}}" state=directory owner={{zookeeper_user}}
+
+    - debug: msg="Downloading from {{zk.download_url}}"
+    - name: download and unpack dist
+      unarchive: src={{zk.download_url}} dest={{zk.install_dir}} copy=no creates=no owner={{zookeeper_user}}
+
+    - name: create symlink to /opt/zookeeper_latest
+      file: src="{{zk.install_dir}}/{{zookeeper_full_version_name}}" dest=/opt/zookeeper_latest owner={{zookeeper_user}} group={{zookeeper_user}} state=link

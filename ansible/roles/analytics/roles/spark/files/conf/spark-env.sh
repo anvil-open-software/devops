@@ -1,0 +1,4 @@
+
+# if we use spark dist without hadoop, then we must provide the jars
+export HADOOP_LIBRARIES_FOR_SPARK=/opt/hadoop/hadoop-latest/etc/hadoop:/opt/hadoop/hadoop-latest/share/hadoop/common/lib/*:/opt/hadoop/hadoop-latest/share/hadoop/common/*:/opt/hadoop/hadoop-latest/share/hadoop/hdfs:/opt/hadoop/hadoop-latest/share/hadoop/hdfs/lib/*:/opt/hadoop/hadoop-latest/share/hadoop/hdfs/*:/opt/hadoop/hadoop-latest/share/hadoop/yarn/lib/*:/opt/hadoop/hadoop-latest/share/hadoop/yarn/*:/opt/hadoop/hadoop-latest/share/hadoop/mapreduce/lib/*:/opt/hadoop/hadoop-latest/share/hadoop/mapreduce/*:/opt/hadoop/hadoop-latest/contrib/capacity-scheduler/*.jar/opt/hadoop/hadoop-latest/share/hadoop/yarn/*:/opt/hadoop/hadoop-latest/share/hadoop/yarn/lib/*
+export SPARK_DIST_CLASSPATH=$SPARK_DIST_CLASSPATH:$HADOOP_LIBRARIES_FOR_SPARK

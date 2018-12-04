@@ -1,0 +1,22 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# ansible-playbook -i  /dematic/git/devops-config/ansible/roles/validation/inventory/dev-cluster \
+# test-uninterrupted-run-validate-final-count.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+# vanilla case where you have a single run go through a single time
+
+- name: "sleep  specified amount of time"
+  hosts: localhost
+  tasks:
+    - name: "Sleeping {{run_duration_in_minutes}} minutes"
+      pause: minutes="{{run_duration_in_minutes}}"
+      when: (run_duration_in_minutes|int) >0
+
+- name: "Wait until spark batches drained to zero 0"
+  include: ../yarn/validation/wait_until_spark_drains.yml
+  tags:
+    - wait_until_spark_drains
+
+- name: "Run final validation counts"
+  include: validate-driver-against-producer.yml
+  tags:
+    - validate-driver-against-producer

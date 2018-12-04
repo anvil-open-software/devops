@@ -1,0 +1,11 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# Shutdown machine instance
+# sleep a few seconds for ansible so it can disconnect and return.
+
+- name: 'shutdown now'
+  shell: nohup bash -c 'sleep 4 && shutdown now "Ansible triggered shutdown"' &
+  async: 0
+  poll: 0
+  ignore_errors: true
+  become: yes
+  become_user: root

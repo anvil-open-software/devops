@@ -1,0 +1,27 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# queries spark and returns key metrics, i.e. StreamingMetrics.streaming.totalProcessedRecords
+# return as spark_driver_statistic variable
+
+  - include: get_spark_event_statistic.yml
+
+  # these convoluted blocks are for counting consecutive matches.
+  # increment spark_driver_stat_match_count for a match, reset spark_driver_stat_match_count=0 if mismatch
+  - block:
+      - name: "check_spark_stat_match is enabled, increment spark_driver_stat_match_count if stat matches {{spark_driver_statistic_target_match}}"
+        set_fact: spark_driver_stat_match_count="{{ spark_driver_stat_match_count | int + 1 }}"
+      - debug: var=spark_driver_stat_match_count
+    when: spark_driver_statistic==spark_driver_statistic_target_match
+
+  - block:
+      - name: "Rest match count to zero if spark_driver_statistic does not match {{spark_driver_statistic_target_match}}"
+        set_fact: spark_driver_stat_match_count=0
+      - debug: var=spark_driver_stat_match_count
+    when: spark_driver_statistic!=spark_driver_statistic_target_match
+
+   # outer loop_control/pause appear not to work so put in a pause here
+  - name: "sleep {{spark_run_batch_interval_in_seconds}} seconds"
+    pause: seconds="{{spark_run_batch_interval_in_seconds}}"
+    when: spark_run_batch_interval_in_seconds is defined and (spark_run_batch_interval_in_seconds|int) >0
+
+
+

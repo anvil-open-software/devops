@@ -1,0 +1,66 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# waits for spark driver to reach RUNNING status for target spark driver
+# fails immediately if driver was FAILED or KILLED
+# Also checks to see the Spark records processed is between [<= greather_than_value,>=less_than_value]
+
+# must pass in following:
+# yarn_master_ip
+# spark_driver_key
+# less_than__eq_value
+# greather_than_eq_value
+# spark_full_metric_key most commonly will be DAGScheduler.job.allJobs
+
+# test locally with:
+# ansible-playbook -i ../../../../../test/inventory/test_regression_cluster  -c local 	validate_yarn_launched_spark_driver_metric.yml
+
+- hosts: localhost
+  gather_facts: false
+  connection: local
+  vars:
+      # define as a play variable so the task can change it
+      target_tracking_url: null
+      target_yarn_app_status: null
+      target_yarn_app_id: null
+      # target_yarn_app: null won't let me use a structure.
+      debug_level: "info"
+      driver_totalProcessedRecords: null
+      yarn_status_retries: 20
+      yarn_status_delay_in_seconds: 15
+      spark_run_batch_interval_in_seconds: 1
+      metric_fetch_retries: 30
+      target_yarn_success_status: 'INIT'
+
+  tasks:
+
+    - include_vars: "{{spark_driver_conf_file}}"
+
+    - name: fetch spark jar and driver record by name
+      set_fact: spark_driver_class={{spark_drivers_dict[spark_driver_key].class}}
+
+    - name: Get list of current YARN apps running
+      include: tasks/check_yarn_app_status.yml
+
+      # NOTE you CANNOT in ansible 1.9 just include a task and use the variables in the until loop
+      # until: target_yarn_success_status == 'RUNNING'
+      # retries: "{{yarn_status_retries}}"
+      # delay: "{{yarn_status_delay_in_seconds}}"
+
+    - name: Final status message
+      debug: var=target_yarn_success_status
+
+
+    - name: "Wait until {{spark_target_metric}} is at least {{greather_than_eq_value}} for {{target_yarn_app_id}}"
+      include: ../../spark/tasks/get_spark_event_statistic.yml
+      vars:
+        spark_target_metric: "driver.DAGScheduler.job.allJobs"
+        # "not_used_for_structured_streaming"
+        spark_driver_app_name: ""
+        spark_stat_retries: "{{metric_fetch_retries}}"
+        spark_stat_delay_interval_in_seconds: 5
+      until: (spark_driver_statistic|int)>="{{greather_than_eq_value}}"
+      retries: "{{metric_fetch_retries}}"
+      delay: "{{spark_run_batch_interval_in_seconds}}"
+
+    - name: "fail if Spark  spark_target_metric {{spark_driver_statistic}} is not between {{less_than_eq_value}} and {{greather_than_eq_value}}"
+      fail: msg="{{spark_driver_statistic}} was NOT between {{less_than_eq_value}} and {{greather_than_eq_value}}"
+      when: not((spark_driver_statistic|int <= less_than_eq_value|int) and (spark_driver_statistic|int >= greather_than_eq_value|int))

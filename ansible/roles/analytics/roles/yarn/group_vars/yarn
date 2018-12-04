@@ -1,0 +1,58 @@
+#  yarn hadoop
+
+java_home: "/opt/jdk_latest"
+
+hadoop_version: 2.7.3
+hadoop_base: "/opt/hadoop"
+hadoop_home: "{{hadoop_base}}/hadoop-latest"
+hadoop_download: "{{hadoop_base}}/downloads"
+hadoop_sbin: "{{hadoop_home}}/sbin"
+hadoop_bin: "{{hadoop_home}}/bin"
+
+# install parms
+# final download should be http://mirror.cc.columbia.edu/pub/software/apache/hadoop/common/hadoop-2.7.3/hadoop-2.7.3.tar.gz
+#hadoop_download_url: "http://mirror.cc.columbia.edu/pub/software/apache/hadoop/common/hadoop-{{hadoop_version}}/hadoop-{{hadoop_version}}.tar.gz"
+hadoop_download_url: "http://apache.cs.utah.edu/hadoop/common/hadoop-{{hadoop_version}}/hadoop-{{hadoop_version}}.tar.gz"
+
+hadoop_new_dir: "hadoop-{{hadoop_version}}"
+# store externally to hadoop
+yarn_ext_conf_dir: "/opt/yarn"
+yarn_log_conf_dir: "{{yarn_ext_conf_dir}}/conf"
+
+yarn_log_dir: "{{hadoop_home}}/logs"
+
+# yarn configuration all in same directory as hadoop
+yarn_conf_dir: "{{hadoop_home}}/etc/hadoop"
+yarn_site_file: "{{yarn_conf_dir}}/yarn-site.xml"
+yarn_template_dir: "templates/etc/hadoop"
+
+
+
+default_hadoop_temp_drive: "/mnt/hadoop-yarn-spark"
+
+hadoop_temp_drive: "{{hadoop_temp_dir_override | default(default_hadoop_temp_drive)}}"
+hadoop_dfs_dir: "{{hadoop_temp_drive}}/dfs"
+yarn_log_dir: "{{hadoop_temp_drive}}/logs"
+
+
+yarn_conf_dict:
+  hadoop_env:
+    file: hadoop-env.sh
+  yarn_env:
+    file: yarn-env.sh
+  yarn_site:
+    file: yarn-site.xml
+  core:
+    file: core-site.xml
+  hdfs:
+    file: hdfs-site.xml
+  capacity_scheduler:
+    file: capacity-scheduler.xml
+
+hadoop_mgr_ui_port: 50070
+yarn_mgr_ui_port: 8088
+
+yarn_resource_manager_JMX_port: 7199
+
+yarn_user: spark
+spark_home: "/opt/spark/spark-latest/"

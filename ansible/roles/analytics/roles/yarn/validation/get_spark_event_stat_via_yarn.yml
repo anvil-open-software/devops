@@ -1,0 +1,43 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# waits for spark driver to reach RUNNING status for target spark driver
+# fails immediately if driver was FAILED or KILLED
+#  returns value in spark_driver_statistic
+# must pass in following:
+# yarn_master_ip
+# spark_driver_key
+# less_than_value
+# greather_than_value
+
+# test locally with:
+# ansible-playbook -i ../../../../../test/inventory/test_regression_cluster  -c local 	wait_yarn_app_status.yml
+
+- hosts: localhost
+  gather_facts: false
+  connection: local
+  vars:
+      # target_yarn_app: null won't let me use a structure.
+      debug_level: "info"
+
+      # assumes YARN is up and ready and processing. If you have to retry- something wrong with the request
+      yarn_status_retries: 3
+      yarn_status_delay_in_seconds: 3
+
+      spark_stat_retries: 3
+      spark_stat_delay_interval_in_seconds: 3
+
+  tasks:
+    - include_vars: "{{spark_driver_conf_file}}"
+
+    - name: fetch spark jar and driver record by name
+      set_fact: spark_driver_class={{spark_drivers_dict[spark_driver_key].class}}
+    - name: "set spark_driver_app_name when not structured streaming, otherwise use passed in parms"
+      set_fact: spark_driver_app_name="{{kafka_topic}}_{{spark_drivers_dict[spark_driver_key].app_name_base}}"
+      when: spark_drivers_dict[spark_driver_key].structured_streaming is not defined
+
+    - name: "Get current YARN app ID in RUNNING status, retrying {{yarn_status_retries}}"
+      include: tasks/get_yarn_app_id.yml
+
+    # even if YARN container app is launched, it takes some time for spark to get launched and pumping stats.
+    # if it's the first time
+    - name: "Fetch Spark metrics and return to spark_driver_statistic. Control retries with spark_stat_retries={{spark_stat_retries}}"
+      include: ../../spark/tasks/get_spark_event_statistic.yml

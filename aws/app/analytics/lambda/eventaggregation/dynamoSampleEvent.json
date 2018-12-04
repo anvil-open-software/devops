@@ -1,0 +1,36 @@
+{
+  "Records": [
+    {
+      "eventID": "a02429d534fb21654fe94fd4b7abf2c2",
+      "eventName": "MODIFY",
+      "eventVersion": "1.0",
+      "eventSource": "aws:dynamodb",
+      "awsRegion": "us-east-1",
+      "dynamodb": {
+        "Keys": {
+          "bucket": {
+            "S": "2015-08-28T11:21:00.000-07:00"
+          }
+        },
+        "NewImage": {
+          "bucket": {
+            "S": "2015-08-28T11:21:00.000-07:00"
+          },
+          "created": {
+            "S": "2015-08-28T11:34:37.260-07:01"
+          },
+          "count": {
+            "N": "43902"
+          },
+          "updated": {
+            "S": "2015-08-28T11:47:46.540-07:00"
+          }
+        },
+        "SequenceNumber": "27989600000000000029810316",
+        "SizeBytes": 151,
+        "StreamViewType": "NEW_IMAGE"
+      },
+      "eventSourceARN": "arn:aws:dynamodb:us-east-1:690256310526:table/yarn2_Event_Aggregator/stream/2015-09-01T23:08:12.811"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# waits for spark driver to reach RUNNING status for target spark driver
+# fails immediately if driver was FAILED or KILLED
+# Also checks to see the Spark records processed is between [<= greather_than_value,>=less_than_value]
+
+# must pass in following:
+# yarn_master_ip
+# spark_driver_key
+# less_than_value
+# greather_than_value
+
+# test locally with:
+# ansible-playbook -i ../../../../../test/inventory/test_regression_cluster  -c local 	wait_yarn_app_status.yml
+
+- hosts: localhost
+  gather_facts: false
+  connection: local
+  vars:
+
+      # define as a play variable so the task can change it
+      target_tracking_url: null
+      target_yarn_success_status: 'INIT'
+      target_yarn_app_status: null
+      target_yarn_app_id: null
+      # target_yarn_app: null won't let me use a structure.
+      debug_level: "info"
+      driver_totalProcessedRecords: null
+      yarn_status_retries: 20
+      yarn_status_delay_in_seconds: 15
+
+  tasks:
+
+    - include_vars: "{{spark_driver_conf_file}}"
+
+    - name: fetch spark jar and driver record by name
+      set_fact: spark_driver_class={{spark_drivers_dict[spark_driver_key].class}}
+
+    - name: Get list of current YARN apps running
+      include: tasks/check_yarn_app_status.yml
+
+      # NOTE you CANNOT in ansible 1.9 just include a task and use the variables in the until loop
+      # until: target_yarn_success_status == 'RUNNING'
+      # retries: "{{yarn_status_retries}}"
+      # delay: "{{yarn_status_delay_in_seconds}}"
+
+    - name: Final status message
+      debug: var=target_yarn_success_status
+
+    - name: Check Spark metrics
+      include: tasks/check_spark_app_status.yml
+
+    - name: "fail if Spark total processed events {{driver_totalProcessedRecords}} is not between {{less_than_value}} and {{greather_than_value}}"
+      fail: msg="{{driver_totalProcessedRecords}} was NOT between {{less_than_value}} and {{greather_than_value}}"
+      when: not((driver_totalProcessedRecords|int <= less_than_value|int) and (driver_totalProcessedRecords|int >= greather_than_value|int))

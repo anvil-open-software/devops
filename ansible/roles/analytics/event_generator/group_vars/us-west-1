@@ -1,0 +1,7 @@
+
+# group parameters into region
+aws_region: "us-west-1"
+
+kcl_security_group: app-kcl
+kcl_ami_id: ami-xxxx
+kcl_subnet_id: subnet-xxxx

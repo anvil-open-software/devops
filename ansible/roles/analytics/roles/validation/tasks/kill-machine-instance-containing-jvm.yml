@@ -1,0 +1,14 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# kill jvm named spark_class_name
+
+- name: "get process id of jvm {{jvm_class_name}} of type {{spark_class_name}}"
+  shell: "{{jps_command}}  -mlv | grep '{{jvm_class_name}}' | grep '{{spark_class_name}}'| awk '{ print $1 }'"
+  register: result
+  become: true
+  become_user: spark
+- debug: var=result
+- set_fact: matching_jvm_process="{{result.stdout}}"
+  when: result.stdout != ""
+  
+- include: shutdown-machine-instance.yml
+  when: matching_jvm_process is defined

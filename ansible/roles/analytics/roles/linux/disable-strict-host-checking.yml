@@ -1,0 +1,8 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# this one is hardcoded to spark, will be refactored soon
+- name: remove known_hosts to start from a clean slate, otherwise ssh between nodes
+  file: path=/home/spark/.ssh/known_hosts state=absent
+  when: clean_known_hosts is defined
+
+- name: copy ssh config StrictHostKeyChecking
+  copy: src="../../files/.ssh/" dest="/home/spark/.ssh" mode="u+rw,g-rw,o-rw" owner=spark

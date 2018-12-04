@@ -1,0 +1,16 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# separate way to update influxdb
+
+- name: "configure influxdb"
+  hosts: influxdb
+  become: yes
+  tasks:
+    - block:
+      - name: "Template influx configuration files"
+        template: src="templates/etc/influxdb/{{ item }}.j2" dest="/etc/influxdb/{{item}}"
+        with_items:
+          - influxdb.conf
+      - name: "Restart the InfluxDB service"
+        service: name=influxdb state=restarted
+    #  when: influxdb_configure_server

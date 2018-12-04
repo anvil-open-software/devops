@@ -1,0 +1,28 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+
+
+- name: Unmount up device
+  mount:
+    backup: true
+    path: "{{mount_path}}"
+    src: "{{mount_src}}"
+    state: absent
+
+#- name: Detach disks
+#  shell: "az vm disk detach -g {{azure_resource_group}} --vm-name {{item.1}} -n {{item.0}}"
+#  with_together:
+#    - "{{disk_names}}"
+#    - "{{vm_names}}"
+
+- name: "Remove data disks from cluster_member_names"
+  azure_rm_managed_disk:
+    name: "{{item.0}}"
+    state: absent
+    auth_source: "msi"
+    resource_group: "{{azure_resource_group}}"
+    subscription_id: "{{azure_subscription_id}}"
+  with_together:
+    - "{{disk_names}}"
+    - "{{vm_names}}"
+  when: azure_create_delete_disk

@@ -1,0 +1,87 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: yarn
+  become: yes
+
+  # configure yarn-site.xml to right number of cores/procs
+  # local testing
+  # ansible-playbook -i /dematic/git/devops-config/ansible/roles/YARN/inventory/yarn-devops configure-yarn-member.yml --private-key /dematic/keys/google/gcp-devops -u spark
+
+  vars:
+
+  tasks:
+    - hostname: name="{{ inventory_hostname }}"
+      #when: force_hostname_ip is defined and force_hostname_ip
+    # using ansible_hostname  truncates to 10...
+    # - shell: "hostname {{ ansible_hostname }}"
+    - include: ../linux/disable-strict-host-checking.yml
+
+    - file: path={{hadoop_temp_drive}} state=directory owner={{yarn_user}}
+
+    - name: update env profile.d/spark-on-yarn.sh
+      copy: src="files/etc/profile.d/spark-on-yarn.sh" dest="/etc/profile.d" mode="a+rx"
+
+    # Put it in for everyone
+    - name: add spark-on-yarn.sh to .bashrc to be available to non-interactive shell at beginning of file
+      lineinfile:
+        dest: "/etc/bash.bashrc"
+        line: "source /etc/profile.d/spark-on-yarn.sh"
+        insertbefore: BOF
+        state: present
+      become: yes
+
+
+    - name: add spark-on-yarn.sh to home bash as it includes the PS setting which needs to go last
+      lineinfile:
+        dest: "/home/{{item}}/.bashrc"
+        line: "source /etc/profile.d/spark-on-yarn.sh"
+        state: present
+      become: yes
+      with_items:
+        - "{{yarn_user}}"
+        - devops
+      tags:
+        - update_home_bashrc
+
+    # explicitly load- sometimes not loaded authomatically
+    - include_vars: group_vars/yarn
+
+    # this was added to run more executors as the AWS machines were being only used at less than 20%
+    - name: update number of processors - can be multiplied by vcore_multiplier with hardware cores to overload CPU
+      shell: "nproc | awk '{$1=$1*{{vcore_multiplier|default(1)}}; print $1;}'"
+      register: nproc_multiplied
+
+    - name: update available system ram in MB per node
+      shell: "cat /proc/meminfo | grep MemTotal | awk '{ print $2 }' | awk '{$1=$1/1024; print $1;}'"
+      register: mem_total
+
+    - name: template out source controlled yarn configuration files
+      template: src="{{yarn_template_dir}}/{{item.value.file}}.j2" dest="{{yarn_conf_dir}}/{{item.value.file}}" owner=spark
+      with_dict: "{{yarn_conf_dict}}"
+
+    - name: template out slaves file
+      template: src="{{yarn_template_dir}}/slaves.j2" dest="{{yarn_conf_dir}}/slaves" owner=spark owner=spark
+    - name: make sure master is not included as a slave as jinja filter not doing the master check properly
+      lineinfile : dest="{{yarn_conf_dir}}/slaves" line="{{yarn_master_ip}}" state=absent
+
+    # This is only necessary when there is custom DNS and Linux instances are not automatically registered.
+    - name: "Add yarn fdqn cluster to host file of all in cluster"
+      lineinfile:
+        dest: /etc/hosts
+        line: "{{ hostvars[item].inventory_hostname }} {{ hostvars[item].ansible_fqdn }}"
+        state: present
+      with_items: "{{ groups.yarn }}"
+      tags:
+        - update-yarn-hosts-file
+
+  # add logging properties, we might move this per driver launcher
+    - name: update logging properties
+      file: path="{{yarn_log_conf_dir}}" state=directory recurse=yes
+    - copy: src="../../files/logging/" dest="{{yarn_log_conf_dir}}" owner={{yarn_user}} group={{yarn_user}}
+
+  # don't add it to dfs- leave conf in files so you can more easily change parameters if need
+
+    - name: add spark configuration profiles
+      copy: src="../spark/files/conf" dest="/opt/spark/spark-latest" owner={{yarn_user}} group={{yarn_user}} backup=yes
+      tags:
+        - update-spark-configuration

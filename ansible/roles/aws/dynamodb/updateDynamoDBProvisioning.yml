@@ -1,0 +1,47 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# This is for the rare rare case of updating something after provisioning
+# For most cases use JVM parameters to set on creation.
+# Spark spark KCL has this hardcoded so we have to do this after the fact.
+
+
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+  vars:
+    throughput_parm: --provisioned-throughput="ReadCapacityUnits={{ReadCapacityUnits}},WriteCapacityUnits={{WriteCapacityUnits}}"
+    ddb_describe_cmd : "aws dynamodb describe-table --table-name {{ddb_table_name}} --region {{aws_region}}"
+    create_poll_retries: 30
+    create_poll_delay: 7
+  tasks:
+
+   # ugh- we cannot use lovely ansible module until 2.0 upgrade
+   # todo 2.0 upgrade, use module see http://docs.ansible.com/ansible/dynamodb_table_module.html
+   # todo wait to change before capacity if it is in create mode
+
+    - debug: msg="{{ddb_describe_cmd}}"
+    - name: Query aws to see if stream exists
+      command: "{{ddb_describe_cmd}}"
+      ignore_errors: yes
+      register: result
+
+    - debug: msg="{{result}}"
+    - set_fact: ddb_is_active="{{ result.stdout.find('ACTIVE') > -1 }}"
+    - debug: msg="{{ddb_is_active}}"
+
+    - name: Wait until kinesis stream is fully created and in ACTIVE status
+      command:  "{{ddb_describe_cmd}}"
+      when: not ddb_is_active
+      register: result
+      until: (result.stdout.find("ACTIVE") > -1)
+      retries: "{{create_poll_retries}}"
+      delay: "{{create_poll_delay}}"
+
+    - name: update dynamo tables
+      local_action: command aws dynamodb update-table --table-name {{ddb_table_name}} {{throughput_parm}} --region {{aws_region}}
+      register: update_result
+      ignore_errors: yes
+      # todo need to fish out if it was the same in which case an error happens.
+
+    - debug: var=update_result
+

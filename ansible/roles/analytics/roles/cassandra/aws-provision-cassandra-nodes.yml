@@ -1,0 +1,46 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: localhost
+  sudo: no
+  vars:
+    # sent from jenkins
+    # member_private_ip:
+    # worker_instance_type: m3.xlarge
+    # region: us-east-1
+    # sparks_cluster_name: "dev"
+
+    instance_profile_name: app-cassandra
+    default_assign_public_ip: no
+
+  tasks:
+    - include_vars: "../../group_vars/spark"
+    - include_vars: "../../group_vars/{{region}}"
+
+    - name: Launch ec2 instance
+      ec2:
+        key_name: "{{key_pair_name}}"
+        instance_type: "{{worker_instance_type}}"
+        image: "{{cassandra_ami_id}}"
+        wait: yes
+        count: 1
+        group_id: "{{ cassandra_security_group }}"
+        region: "{{ region }}"
+        vpc_subnet_id: "{{cassandra_subnet_id_override|default(spark_subnet_id)}}"
+        assign_public_ip: "{{assign_public_ip|default(default_assign_public_ip)}}"
+        private_ip: "{{item}}"
+        instance_profile_name: "{{instance_profile_name}}"
+        termination_protection: yes
+        instance_tags:
+          Name: "cassandra node {{cassandra_cluster_name}} {{ item }}"
+          APP_ID: "CASSANDRA"
+          CASSANDRA_CLUSTER_ID: "{{cassandra_cluster_name}}"
+      with_items: "{{cluster_member_private_ips.split(',')}}"
+
+
+    - name: Wait for SSH to come up
+      wait_for: host="{{ item }}" port=22 delay=60 timeout=320 state=started
+      with_items: "{{cluster_member_private_ips.split(',')}}"
+
+
+
+

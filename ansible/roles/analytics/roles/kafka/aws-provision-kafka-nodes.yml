@@ -1,0 +1,67 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# to run locally:
+# ansible-playbook -i ../../../../test/inventory/kafka-provision-test  -c local  aws-provision-kafka-nodes.yml
+#
+# provisions a kafka or kafka zookeeper node
+# sent from jenkins:
+    # kafka_instance_type=KAFKA_ZOOKEEPER or KAFKA
+    # cluster_member_private_ips
+    # worker_instance_type: m3.2xlarge
+    # region: us-east-1
+    # kafka_cluster_name: "dev"
+---
+- hosts: localhost
+  become: no
+  vars:
+    default_instance_profile_name: app-kafka
+
+    # note we cannot use high level subitutions to point instance tags
+    #   based on another variable as the item
+    # does not get substituted at two levels and separating this out does not work...
+    #  kafka_node_instance_tags:
+    #  Name: "kafka node {{kafka_cluster_name}}  {{item}}"
+    #  APP_ID: "KAFKA"
+    #  KAFKA_CLUSTER_ID: "{{kafka_cluster_name}}"
+
+  tasks:
+    - include_vars: "../../group_vars/{{region}}"
+
+    - set_fact: kafka_instance_name_suffix=" node"
+      when: kafka_instance_type=="KAFKA"
+    - set_fact:  kafka_instance_name_suffix=" zookeeper for "
+      when: kafka_instance_type=="KAFKA_ZOOKEEPER"
+    - debug: var=kafka_instance_type
+    
+    - name: Launch ec2 kafka member instance
+      ec2:
+        key_name: "{{key_pair_name}}"
+        instance_type: "{{worker_instance_type}}"
+        image: "{{kafka_ami_id}}"
+        wait: yes
+        count: 1
+        group_id: "{{ kafka_security_group|default(default_security_group) }}"
+        region: "{{ region }}"
+        vpc_subnet_id: "{{kafka_subnet_id_override|default(default_subnet_id)}}"
+        assign_public_ip: "{{assign_public_ip|default(default_assign_public_ip)}}"
+        private_ip: "{{ item }}"
+        instance_profile_name: "{{instance_profile_name|default(default_instance_profile_name)}}"
+        termination_protection: "{{termination_protection}}"
+        instance_tags:
+          Name: "kafka {{kafka_cluster_name}} {{kafka_instance_name_suffix}}  {{item}} "
+          APP_ID: "{{kafka_instance_type}}"
+          CLUSTER_ID: "{{kafka_cluster_name}}"
+          KAFKA_CLUSTER_ID: "{{kafka_cluster_name}}"
+      with_items: "{{cluster_member_private_ips.split(',')}}"
+
+    # CLUSTER_ID is just used for aws ui list view convenience, KAFKA_CLUSTER_ID is used for automation
+
+    # todo see the async approach wince above with_items will go against localhost and will be sequential not parallel execution
+    # http://toroid.org/ansible-parallel-dispatch
+
+    - name: Wait for SSH to come up
+      wait_for: host="{{ item }}" port=22 delay=10 timeout=320 state=started
+      with_items: "{{cluster_member_private_ips.split(',')}}"
+
+
+

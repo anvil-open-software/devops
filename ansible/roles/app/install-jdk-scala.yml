@@ -1,0 +1,24 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: all
+  become: yes
+
+#  ansible-playbook -i ../../../test/inventory/kafka-centos  -c local  install-jdk8.yml --private-key /dematic/keys/devops.pem -u devops
+
+  tasks:
+  # all of the sudden all not automatically read in
+  - include_vars: "vars/all"
+  - include: tasks/install-jdk.yml
+    when: install_jdk
+    tags:
+      - install-jdk
+
+  - block:
+    - name: "update config logging properties used for jmx logging"
+      file: path="{{java_base_dir}}/jvm_conf" state=directory recurse=yes
+    - copy: src=files/jvm_conf/ dest="{{java_base_dir}}/jvm_conf/" backup=no
+    tags:
+      - configure-jdk
+
+  - include: tasks/install-scala.yml
+    when: install_scala is defined and install_scala

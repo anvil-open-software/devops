@@ -1,0 +1,45 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: localhost
+  sudo: no
+  vars:
+    # sent from jenkins
+    # member_private_ip:
+    # region: us-east-1
+    # sparks_cluster_name: "dev"
+
+# ansible-playbook -i /dematic/git/devops-config/ansible/roles/YARN/inventory/dev-yarn-master-provision -c local  provision-YARN-members-gcp.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+    app_name: yarn
+    gcloud_create_parms: "  {{gcp_image_parms}} \
+                            --boot-disk-size {{gcp_boot_disk_size_in_gb}} \
+                            --boot-disk-type {{gcp_boot_disk_type}} \
+                            --tags '{{app_name}}','{{private_instance_nat_tag}}' \
+                            --metadata '{{app_name}}-cluster-id={{cluster_name}},app={{app_name}},{{app_name}}-type={{cluster_member_type}},{{gcp_instance_additional_metadata}}'"
+
+  tasks:
+    - include_vars: "../spark/group_vars/spark"
+    - include_vars: "../../../cloud/gcp/group_vars/all"
+    - include_vars: "{{gcp_project_var_file}}"
+
+    - name: "echo out command before launch for debugging"
+      debug: msg="{{gcloud_create_command}} {{app_name}}-{{cluster_name}}-{{cluster_member_type}}-{{ item.replace('.','-') }} \
+                                      {{gcloud_default_create_parms}}  \
+                                      --private-network-ip  {{ item }} {{gcloud_create_parms}}"
+      with_items: "{{cluster_member_private_ips_csv.split(',')}}"
+
+    # todo redo with async launch for faster processing
+    - name: create compute instance
+      command:  "{{gcloud_create_command}} {{app_name}}-{{cluster_name}}-{{cluster_member_type}}-{{ item.replace('.','-') }} \
+                     {{gcloud_default_create_parms}}  \
+                     --private-network-ip  {{ item }} {{gcloud_create_parms}}"
+      with_items: "{{cluster_member_private_ips_csv.split(',')}}"
+      register: results
+
+    - pause: seconds={{ssh_wait_delay_seconds}}
+    # note delay in wait_for is used for each, not just once
+    - name: Wait for SSH to come up
+      wait_for: host="{{ item }}" port=22 delay=0 timeout={{ssh_timeout_seconds}} state=started
+      with_items: "{{cluster_member_private_ips_csv.split(',')}}"
+
+

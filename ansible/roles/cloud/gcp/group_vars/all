@@ -1,0 +1,29 @@
+# Copyright 2018 Dematic, Corp.
+# Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# this variable file only contains values which should be universal across ALL google accounts
+#  any account specific should be put into devops-config
+
+# currently only command aliases to be used across gcp automation
+
+gcloud_instances_command: "gcloud compute --project {{gcp_project}} instances "
+gcloud_create_command:  "{{gcloud_instances_command}} create"
+
+gcloud_default_create_parms: "      --zone {{gcp_zone}} \
+                            --machine-type {{gcp_machine_type}} \
+                            --min-cpu-platform {{gcp_min_platform|default(gcloud_min_platform_default)}} \
+                            --subnet {{gcp_subnet}} \
+                            --no-address \
+                            --maintenance-policy 'MIGRATE' \
+                             --scopes {{gcp_scopes}} \
+                             --service-account {{gcp_service_account}}"
+
+gcloud_instances_list_command: "{{gcloud_instances_command}} list"
+
+# zones are no longer a first order parm and must be included
+gcp_cluster_filter_parms: "--filter='zone:({{gcp_zone}}) AND metadata.{{cluster_tag}}={{cluster_name}}'"
+
+
+remove_first_title_line_cmd: "sed -n '1!p'"
+# returns a list in one line with first item removed and trailing spaces removed
+flatten_lines_to_spaces_cmd: "{{remove_first_title_line_cmd}} | tr '\n' ' ' | sed -e 's/[[:space:]]*$//'"

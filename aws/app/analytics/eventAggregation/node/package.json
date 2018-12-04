@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "node-rest-client": ">= 1.4.4",
+    "aws-sdk": ">= 2.2.4"
+  }
+}

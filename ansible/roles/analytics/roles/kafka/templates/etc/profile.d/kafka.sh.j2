@@ -1,0 +1,20 @@
+
+# useful shortcuts for looking at kafka stuff. only needed when debugging.
+# run "alias"
+
+export JAVA_HOME=/opt/jdk_latest
+export KAFKA_HOME=/opt/kafka_latest
+
+export PATH=$PATH:$KAFKA_HOME/bin
+
+# useful aliases
+alias ll='ls -al'
+alias kconf='cd $KAFKA_HOME/config; ll'
+alias klogs='cd $KAFKA_HOME/logs; ll'
+alias kdata='cd {{kafka_log_data_dir}}; ll'
+
+alias kbin='cd $KAFKA_HOME/bin; ll'
+
+alias klist='/opt/kafka_latest/bin/kafka-topics.sh --list --zookeeper {{kafka_zookeeper_connection}} kafkatopic'
+
+

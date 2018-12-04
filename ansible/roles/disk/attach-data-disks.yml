@@ -1,0 +1,33 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+#
+# creates a single partition data disk
+#
+# noatime used to improve file access time
+#
+# ansible-playbook -i $DEVOPS_CONFIG_PATH/ansible/roles/kafka/inventory/azure-disk-mount attach-data-disks.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+# See https://docs.microsoft.com/en-us/azure/virtual-machines/linux/attach-disk-portal
+#
+#
+# In reality, these options are for azure since they setup first disk as /sdc
+
+- hosts: linux_data_disk
+  tasks:
+
+    - name: "Create a ext4 filesystem on /dev/sdbc and mount"
+      include: tasks/mount-data-disk.yml
+      become: yes
+      vars:
+        disk_additional_disks:
+        - disk: "/dev/sdc"
+          fstype: ext4
+          part: "/dev/sdc"
+          mount: /data_1
+          mount_options: defaults,nofail,noatime
+          dump: 1
+          pass_num: 2
+          user: devops
+          group: devops
+          disable_periodic_fsck: false
+

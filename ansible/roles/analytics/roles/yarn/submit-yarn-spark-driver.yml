@@ -1,0 +1,31 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+ # local testing
+ # ansible-playbook -i /dematic/gitlab/devops-config/ansible/roles/spark/inventory/yarn-devops-ccmetrics submit-yarn-spark-driver.yml --private-key /dematic/keys/google/gcp-devops -u spark
+
+
+
+- name: cleanup checkpoints from Hadoop DFS if delete_checkpoint_dir is true
+  hosts: spark
+  tasks:
+    - include_vars: ../spark/group_vars/spark
+    - include_vars: group_vars/yarn
+    - block:
+      - set_fact: spark_driver_checkpoint_dir="/user/spark/checkpoints/{{spark_driver_key}}/{{spark_checkpoint_launch_key}}"
+      - name: "delete hdfs checkpoint dir {{spark_driver_checkpoint_dir}} for driver app if delete_checkpoint_dir is true"
+        shell: "{{hadoop_bin}}/hdfs dfs -rm -r {{spark_driver_checkpoint_dir}}"
+        register: results
+        ignore_errors: True
+      - debug: var=results
+      - name: "Make sure nothing exists in the file system neither in case DFS spark standalone was used previously"
+        file: path="{{spark_driver_checkpoint_dir}}" state=absent
+      when: delete_checkpoint_dir
+      tags:
+        - delete_checkpoint_dir
+
+- name: "submit driver for target version {{spark_default_version}}"
+  include: ../spark/vx-spark-submit-driver.yml spark_target_version_dir="{{spark_base}}/{{spark_default_version}}"
+
+
+
+

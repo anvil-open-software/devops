@@ -1,0 +1,21 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# added this which is also done in configure-yarn-member.yml which may not always be run
+# although it is recommended to do so.
+# we force the hostname to be ip address
+# as YARN uses the hostname instead of the ip address in their manager UI, not in the underlying
+- hostname: name="{{ inventory_hostname }}"
+
+- set_fact: ntp_service=ntpd
+- set_fact: ntp_service=ntp
+  when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+- name: "make sure ntpd service started"
+  # even though this runs at install time and amazon linux has no issues, centos appears not to...
+  service: name="{{ntp_service}}" state=started enabled=yes
+
+- name:  "show what is the environment variables"
+  shell: "env"
+  register: results
+- debug: msg="{{results}}"
+
+

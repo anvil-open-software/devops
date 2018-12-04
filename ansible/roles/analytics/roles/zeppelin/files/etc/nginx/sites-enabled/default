@@ -1,0 +1,27 @@
+##
+ # Used purely for debugging logs on Zeppelin
+ #
+ # NOT meant for production
+##
+
+ # Default server configuration
+ #
+ server {
+ 	listen 8888 default_server;
+ 	listen [::]:8888 default_server;
+
+ 	# root /var/www/html;
+ 	# used purely for debugging
+    root /opt/zeppelin/zeppelin-latest;
+
+ 	server_name _;
+
+ 	location / {
+ 		# First attempt to serve request as file, then
+ 		# as directory, then fall back to displaying a 404.
+ 		try_files $uri $uri/ =404;
+ 		 autoindex on;
+ 	}
+
+ }
+

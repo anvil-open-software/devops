@@ -1,0 +1,20 @@
+# Copyright 2018 Dematic, Corp.
+# Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# field specifications for the ec2 describe command
+ec2_field_instanceid: 'Reservations[*].Instances[*].InstanceId'
+ec2_field_status: 'Reservations[*].Instances[*].VpcId'
+ec2_field_instance_status: 'Reservations[*].Instances[*].State.Name'
+ec2_field_private_address: 'Reservations[*].Instances[*].NetworkInterfaces[*].PrivateIpAddresses[*].PrivateIpAddress'
+ec2_describe_cmd: "aws ec2 describe-instances --output text  --region {{region}}"
+ec2_status_cmd:  "{{ec2_describe_cmd}} --query '{{ec2_field_instance_status}}'  {{filter_parms}}"
+
+
+ec2_modify_instance_cmd: "aws ec2 modify-instance-attribute --region {{region}}"
+
+# 'Reservations[*].Instances[*].{ID:InstanceId,IP:NetworkInterfaces[*].PrivateIpAddresses[*].PrivateIpAddress}'
+
+# default ssh polling parms
+ssh_timeout: 400
+ssh_connect_timeout: 60
+ssh_wait_delay: 2

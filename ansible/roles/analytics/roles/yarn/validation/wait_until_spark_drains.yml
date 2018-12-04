@@ -1,0 +1,57 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# waits for spark driver to reach RUNNING status for target spark driver
+#  lastReceivedBatch_records needs to be 0
+
+# ansible-playbook -i  /dematic/git/devops-config/ansible/roles/validation/inventory/dev-cluster wait_until_spark_drains.yml
+#  wait_until_spark_drains.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+
+- hosts: localhost
+  gather_facts: false
+  connection: local
+  vars:
+      debug_level: "info"
+      spark_driver_statistic: null
+
+      # assumes YARN is up and ready and processing. If you have to retry- something wrong with the request
+      yarn_status_retries: 3
+      yarn_status_delay_in_seconds: 3
+      spark_target_metric: "StreamingMetrics.streaming.lastReceivedBatch_records"
+      # can be as long as 20 minutes
+      wait_for_zero_batches_retries: 100
+      spark_run_batch_interval_in_seconds: 10
+      spark_stat_retries: 3
+      spark_stat_delay_interval_in_seconds: 3
+  tasks:
+
+    - include_vars: "{{spark_driver_conf_file}}"
+
+    - name: fetch spark driver fields by key
+      set_fact: spark_driver_class={{spark_drivers_dict[spark_driver_key].class}}
+    - set_fact: spark_driver_app_name="{{kafka_topic}}_{{spark_drivers_dict[spark_driver_key].app_name_base}}"
+
+    - name: Get current YARN app ID in RUNNING status
+      include: tasks/get_yarn_app_id.yml
+
+    # todo to check that it really is at zero, we need to have zeros at least 3 consecutive batches in a row
+    # sad fact we cannot loop over blocks and the until statement DOES NOT work for an include...
+    # needs python
+
+    - name: "Wait until {{spark_target_metric}}  is zero for {{target_yarn_app_id}}"
+      include: ../../spark/tasks/get_spark_event_statistic.yml
+      until: (spark_driver_statistic|int)==0
+      retries: "{{wait_for_zero_batches_retries}}"
+      delay: "{{spark_run_batch_interval_in_seconds}}"
+
+    - set_fact: spark_driver_statistic_target_match=0
+    - set_fact: spark_driver_stat_match_count=0
+    - name: "Check  {{spark_target_metric}}  is zero for {{target_yarn_app_id}}"
+      include: ../../spark/tasks/get_spark_event_statistic_count_consecutive_match.yml
+      with_sequence: start=0 end=10
+      loop_control:
+        loop_var: spark_stat_batch_index
+      # as of 2.1 should work but does not so we pause inside...
+      #  pause: "{{spark_run_batch_interval_in_seconds}}"
+
+    - fail: msg="There should be more than 3 not {{spark_driver_stat_match_count}} consecutive zero batches"
+      when: (spark_driver_stat_match_count|int)<=3

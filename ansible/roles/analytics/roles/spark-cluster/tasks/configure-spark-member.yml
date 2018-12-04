@@ -1,0 +1,15 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+
+- name: "template out spark configuration profiles to {{spark_latest}}/conf"
+  template: src="templates/conf/{{item}}.j2" dest="{{spark_latest}}/conf/{{item}}" owner=spark group=spark backup=yes
+  with_items:
+    - spark-env.sh
+    - slaves
+
+- name: "make sure SPARK_LOCAL_IP value is blanked out when not master {{cluster_master_ip}}"
+  lineinfile : dest={{spark_latest}}/conf/spark-env.sh regexp='^SPARK_LOCAL_IP' state=absent
+  when: cluster_master_ip==inventory_hostname
+
+- name: update env profile.d/spark-on-yarn.sh
+  copy: src="files/etc/profile.d/spark-standalone.sh" dest="/etc/profile.d" mode="a+rx"

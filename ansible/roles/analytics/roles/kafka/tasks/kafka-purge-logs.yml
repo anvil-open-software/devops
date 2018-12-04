@@ -1,0 +1,9 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+- name: delete all data log directories for kafka and zookeeper
+  file: path={{item}} state=absent
+  with_items:
+    - "{{kafka_log_data_dir}}"
+    - "{{kafka_base_dir}}/logs"
+    - /tmp/zookeeper
+  become: yes
+  when: purge_kafka_data_logs is defined and purge_kafka_data_logs=="true"

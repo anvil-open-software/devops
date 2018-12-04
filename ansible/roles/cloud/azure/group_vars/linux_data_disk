@@ -1,0 +1,11 @@
+# Copyright 2018 Dematic, Corp.
+# Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+
+# xfs superior to ext4, kafka by at least 15%
+file_system_type_default: xfs
+data_disk_user: devops
+
+# nobarrier for xfs did not perform as well
+disk_mount_options_default: defaults,nofail,noatime
+

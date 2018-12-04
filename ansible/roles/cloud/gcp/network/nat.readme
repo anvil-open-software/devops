@@ -1,0 +1,40 @@
+Copyright 2018, Dematic, Corp.
+
+# to create a sample NAT, official GCP docs-
+# https://cloud.google.com/compute/docs/networking#natgateway
+# The proper linux way is not to use startup scripts and put the nat-gateway script on  in /etc/network/if-up.d
+# but google recommends using custom scripts which is more convinient as no extra automation after provisioning is needed.
+
+# create NAT instance
+gcloud compute instances create nat-gateway-xxx-us-central1-c \
+    --project "xxx" \
+    --subnet "your-project-xxx-public-us-central1" --private-network-ip "x.x.x.x" \
+    --can-ip-forward \
+    --address x.x.x.x \
+    --machine-type "g1-small" \
+    --zone us-central1-c \
+    --image debian-8 \
+    --tags nat-gateway-us-central1-c \
+    --boot-disk-size "10" --boot-disk-type "pd-standard" \
+    --boot-disk-device-name "nat-gateway-xxx-us-central1-c" \
+    --metadata "startup-script=#!/bin/sh\u000asudo sh -c \"echo 1 > /proc/sys/net/ipv4/ip_forward\"\u000a# Masquerade.\u000asudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE"
+    --maintenance-policy "MIGRATE" \
+    --scopes ansible-automation@youraccount.iam.gserviceaccount.com="https://www.googleapis.com/auth/cloud-platform"
+
+
+# create route to be assigned based on private-instance-us-central1
+
+gcloud compute routes create nat-gateway-xxx-route-us-central1-c \
+    --project "dlabs-dev-primary" \
+    --network your-project-xxx \
+    --destination-range 0.0.0.0/0 \
+    --next-hop-instance nat-gateway-xxx-us-central1-c \
+    --next-hop-instance-zone us-central1-c \
+    --tags private-instance-network-us-central1 --priority 800
+
+
+# test performance
+First establish baseline  to
+https://cloudharmony.com/speedtest-for-google
+
+

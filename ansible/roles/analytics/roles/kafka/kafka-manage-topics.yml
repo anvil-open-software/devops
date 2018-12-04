@@ -1,0 +1,31 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts:  zookeeper-nodes
+  run_once: true
+#
+#  Support multiple topic creation
+#  pass in parameters comma separated, i.e. kafka_topic=topic1,topic2,topic3
+#
+# 0. 2. drop keyspace : set drop_topic="true" before creating keyspace
+# 1. create keyspace: set create_topic="true"
+#
+# to test locally:
+# ansible-playbook -i ../../../../test/inventory/kafka kafka-manage-topics.yml --private-key /dematic/keys/devops.pem -u kafka
+
+# need to pass in  topic, kafka_topic_replication_factor, kafka_num_partitions
+
+  tasks:
+    - set_fact: topic_array="{{kafka_topics_csv.split(',')}}"
+
+    - debug: msg="Requested topic={{ item.0 }} with partitions={{ item.1 }} "
+      with_together:
+        - "{{topic_array}}"
+        - "{{kafka_num_partitions_csv}}"
+
+    - include: tasks/kafka-manage-topic.yml
+      vars:
+        kafka_topic: "{{ item.0 }}"
+        kafka_num_partitions: "{{ item.1 }}"
+      with_together:
+        - "{{topic_array}}"
+        - "{{kafka_num_partitions_csv}}"

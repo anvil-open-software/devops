@@ -1,0 +1,21 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+  # Test if elasticache is open.
+  # todo: Might have to add an exemption in the future
+
+  vars:
+    cache_list_cmd : "aws elasticache describe-cache-clusters --region {{region}}"
+
+  tasks:
+    - debug: msg="{{cache_list_cmd}}"
+    - name: Query if caches are active
+      command: "{{cache_list_cmd}}"
+      register: result
+
+    - name: fail if any streams exist
+      fail: msg="The following cache clusters are active -  {{result.stdout}}"
+      when: (result.stdout.find("CacheClusterStatus") > -1) and (result.stdout.find("available") > -1)

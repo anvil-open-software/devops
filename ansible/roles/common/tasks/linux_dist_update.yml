@@ -1,0 +1,22 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+  - name: "upgrade all packages"
+    yum: name=* state=latest
+
+  - include: update-hostfile.yml
+
+  - name: "set local time after yum update to default time zone"
+    shell: "sudo rm /etc/localtime; sudo ln -s /usr/share/zoneinfo/{{timezone|default(default_timezone)}}  /etc/localtime"
+
+  - name: "install necessary utilities like wget and unzip"
+    yum: name=wget state=latest
+  - yum: name=unzip state=latest
+  - yum: name=psmisc state=latest
+
+
+  - name: "install ntp  and run service"
+    yum: name=ntp state=latest
+  - service: name=ntpd state=started enabled=yes
+
+  # todo there is some syntax problem , debug lager
+  # - include: config-ntp.yml

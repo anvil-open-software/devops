@@ -1,0 +1,30 @@
+# Copyright 2018 Dematic, Corp.
+# Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: spark
+  sudo: yes
+  vars:
+    # sent from jenkins
+    # spark_master_ip:
+    # worker_private_ip:
+
+    instance_profile_name: app-spark
+    spark_env_file: "{{spark_conf_dir}}/spark-env.sh"
+
+  tasks:
+
+    - name: update spark-env.sh config file with cluster I.P. addresses
+      lineinfile : dest={{ spark_env_file }} regexp='^SPARK_LOCAL_IP' line="SPARK_LOCAL_IP={{worker_private_ip}}" state=present
+
+    - lineinfile : dest={{ spark_env_file }} regexp='^SPARK_MASTER_IP' line="SPARK_MASTER_IP={{spark_master_ip}}" state=present
+
+    - name: update etc hosts file with local hostname
+      command: hostname
+      register: hostname
+
+    - lineinfile : dest=/etc/hosts regexp='^(127\.0\.0\.1\sip)' state=absent
+
+    - name: set local time
+      shell: "sudo rm /etc/localtime; sudo ln -s /usr/share/zoneinfo/PST8PDT /etc/localtime"
+
+

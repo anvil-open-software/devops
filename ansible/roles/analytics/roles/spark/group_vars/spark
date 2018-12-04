@@ -1,0 +1,40 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# modify when upgrading
+# spark-1.5.2-bin-2.7.1.tgz
+
+scala_version: 2.11
+
+yarn_version: 2.7.1
+
+#pass in from jenkins
+#spark_version_only: 1.5.2
+spark_version: spark-{{spark_version_only}}
+spark_tgz: "{{spark_version}}.tgz"
+
+# we need a specific unzip directory because we need to rename whatever unpredictable name the distribution
+# is created with
+spark_unzip_dir: "{{spark_base}}/{{spark_new_dir}}_unzip"
+
+spark_assembly_jar: "spark-assembly-{{spark_version_only}}-hadoop{{yarn_version}}.jar"
+spark_new_dir: "{{spark_version}}-bin-{{yarn_version}}"
+
+spark_base: "/opt/spark"
+spark_latest: "{{spark_base}}/spark-latest"
+spark_dir_fqn: "{{spark_base}}/{{spark_version}}"
+
+# used for making a custom spark build
+build_base: "/tmp/spark_build"
+
+build_download_fqn: "{{build_base}}/{{spark_tgz}}"
+spark_build_fqn: "{{build_base}}/{{spark_version}}"
+spark_new_home: "{{spark_base}}/{{spark_version}}"
+
+download_dest: "/opt/downloads"
+
+spark_user: spark
+
+spark_target_version_dir: "{{spark_base}}/{{spark_default_version}}"
+
+# used for spark stand alone cluster
+spark_master_port: 7077
+spark_default_deploy_mode: cluster

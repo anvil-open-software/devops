@@ -1,0 +1,30 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# generic play to fetch a single value from a given table with id column match
+#  does not fail the play, sets table_select_numeric_result value to  {{cql_query_failure_value}} when failed
+# pass in {{cassandra_column}}  {{cassandra_keyspace}} {{cassandra_table}} {{cassandra_column_id}}
+
+# example query as:
+# cqlsh cassandrahost -u spark -p password -k regr_customer --execute="SELECT spark_count from regr_customer.signal_validation where id='regr_CUMULATIVE_SIGNAL_METRICS' limit 1" | grep -Po '.* \K\d+\.*\d*'
+
+# note most likely due to CASSANDRA-11726, we will get an error message when you only select one column after load.
+# passing in all count columns is a workaround until we upgrade to 3.8
+#  the very LAST column is sent out. producer_error_count,producer_count,spark_count
+
+# cannot parameterize entire command as there is a lot of embedded quotes
+- set_fact: filter_numeric_line="grep -Po '.* \K\d+\.*\d*'"
+- name: query and fetch just the numbered value
+  shell:  "{{cassandra_sql_cmd}} -k {{cassandra_keyspace}} --execute=\"{{cql_stmt}}\" | {{filter_numeric_line}} "
+  register: results
+  ignore_errors: yes
+
+- name: debug to get sql statement
+  debug: var=results
+
+- name: "Query successfully returned {{results.stdout}}"
+  set_fact: table_select_numeric_result="{{results.stdout}}"
+  when: results.failed is not defined and results.rc==0
+
+- name: "Query failed so set table_select_numeric_result to {{cql_query_failure_value}} "
+  set_fact: table_select_numeric_result="{{cql_query_failure_value}}"
+  when: results.failed is defined and results.failed

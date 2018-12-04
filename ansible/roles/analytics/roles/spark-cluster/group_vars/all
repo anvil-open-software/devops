@@ -1,0 +1,12 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+spark_base: "/opt/spark"
+spark_target_version_dir: "{{spark_base}}/{{spark_default_version}}"
+spark_latest: "{{spark_base}}/spark-latest"
+spark_log_dir: "{{spark_latest}}/logs"
+spark_work_dir: "{{spark_latest}}/work"
+spark_master_connection_url: "spark://{{cluster_master_ip}}:7077"
+
+spark_ui_url: "http://{{ cluster_master_ip }}:8080"
+
+spark_pid_cmd: "ps ax | grep -i 'org.apache.spark.deploy' | grep java | grep -v grep | awk '{print $1}'"
+spark_kill_cmd: "{{spark_pid_cmd}} | xargs kill -SIGKILL"

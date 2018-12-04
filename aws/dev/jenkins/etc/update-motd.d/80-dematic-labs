@@ -1,0 +1,2 @@
+#!/bin/sh
+cat ~devops/readme.motd

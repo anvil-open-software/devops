@@ -1,0 +1,35 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# queries spark and returns key metrics, i.e. StreamingMetrics.streaming.totalProcessedRecords
+# return as spark_driver_statistic variable
+
+  - set_fact: spark_json_url="{{target_tracking_url}}/metrics/json"
+  - name: "non structured streaming uses spark_driver_app_name"
+    set_fact: spark_full_metric_key="{{target_yarn_app_id}}.driver.{{spark_driver_app_name}}.{{spark_target_metric}}"
+    when: spark_drivers_dict[spark_driver_key].structured_streaming is not defined
+
+  - name: "structured streaming, just use spark_target_metric directly"
+    set_fact: spark_full_metric_key="{{target_yarn_app_id}}.{{spark_target_metric}}"
+    when: spark_drivers_dict[spark_driver_key].structured_streaming is defined
+
+  - name: "Get SPARK metrics JSON {{spark_full_metric_key}} from {{spark_json_url}}"
+    uri: url="{{spark_json_url}}" return_content=yes
+    register: spark_response
+    until: spark_response.json.gauges and spark_response.content.find(spark_full_metric_key)>-1
+    retries: "{{spark_stat_retries}}"
+    delay: "{{spark_stat_delay_interval_in_seconds}}"
+
+  - set_fact: spark_metric_json="{{spark_response.json.gauges}}"
+
+  # cannot seem to be able to just pick out the right key (as there is dot notation)
+  #   quotes which appears not to be correctly translated by jinja
+  - debug: var=spark_metric_json verbosity=3
+  - name: "get entry for {{spark_full_metric_key}}"
+    debug: var="{{ spark_metric_json[spark_full_metric_key] }}" verbosity=3
+
+  # since above does not work, just do a simple search for now. it's fast and we only do it once.
+  - set_fact: spark_driver_statistic="{{item.value.value|int}}"
+    with_dict: "{{spark_metric_json}}"
+    when: item.key==spark_full_metric_key
+    #when: item.key.find("{{spark_target_metric}}")>-1
+
+  - debug: var=spark_driver_statistic

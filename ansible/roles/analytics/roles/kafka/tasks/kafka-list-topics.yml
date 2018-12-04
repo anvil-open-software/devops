@@ -1,0 +1,6 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+- name: "list existing topics"
+  shell: "{{kafka_bin_dir}}/kafka-topics.sh --list --zookeeper {{kafka_zookeeper_connection}} kafkatopic"
+  register: kafka_topic_result
+- debug: var=kafka_topic_result

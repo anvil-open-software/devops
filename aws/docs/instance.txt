@@ -1,0 +1,8 @@
+
+For the latest see http://aws.amazon.com/amazon-linux-ami/
+Use HVM (SSD)  EBS-Backed  64-bit
+
+  "Mappings" : {
+    "AMIRegionMap": {
+      "us-east-1": {"AMI": "ami-1ecae776"}
+    }

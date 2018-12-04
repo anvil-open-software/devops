@@ -1,0 +1,40 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+# generic wrapper to tear down a cluster, this is for cases where everything is properly created
+# cluster_member_private_ips_csv - comma separated list of private ip addresses
+#  see readme for tag management
+# ansible-playbook -i $DEVOPS_CONFIG_PATH/ansible/roles/producer/inventory/azure-cluster-deletion -c local azure-vm-delete-by-tag.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+#   az resource list --tag "prometheus_job_name=-kafka" --query "[?type=='Microsoft.Compute/virtualMachines'].name" -o tsv
+
+- hosts: localhost
+
+  tasks:
+    - include_vars: "{{azure_global_var_file}}"
+    - include_vars: "{{azure_resource_group_var_file}}"
+
+    - name: "Get all instance names with matching tags {{cluster_tag}}={{cluster_value}}"
+      shell: az resource list --tag "{{cluster_tag}}={{cluster_value}}" --query "[?type=='Microsoft.Compute/virtualMachines'].name" -o tsv
+      register: result
+    - debug: var=result
+    - set_fact: vm_names_to_delete="{{result.stdout.split('\n')}}"
+    - debug: msg="Following will be deleted {{vm_names_to_delete}}"
+
+    - block:
+      - name: "Delete vm, nic, disk asynchronously"
+        azure_rm_virtualmachine:
+          auth_source: "msi"
+          resource_group: "{{azure_resource_group}}"
+          name: "{{item}}"
+          state: absent
+          remove_on_absent:
+            - network_interfaces
+            - virtual_storage
+        with_items: "{{vm_names_to_delete}}"
+        async: "{{async_task_completion_seconds}}"
+        poll: 0
+        register: async_results
+
+      - name: "Check async results"
+        include: tasks/check-async-results.yml status_test_retries=500
+      when: delete_vms_by_tag

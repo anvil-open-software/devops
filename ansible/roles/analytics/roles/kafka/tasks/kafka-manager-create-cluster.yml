@@ -1,0 +1,15 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# adds a cluster to the view so you can access it. no public API but you can
+# just use the underlying REST that play framework uses but the return is html
+- set_fact: kafka_rest_create_cluster_api="name=default&zkHosts={{kafka_zookeeper_connection}}&kafkaVersion={{kafka_manager_kafka_backwards_compatible_version|default(kafka_version)}}&jmxEnabled=true&pollConsumers=true"
+
+- name: "Create default cluster with {{kafka_rest_create_cluster_api}}"
+  uri:
+    url: "http://{{kafka_mgr_host}}:9000/clusters"
+    method: POST
+    status_code: 200
+    body: "{{kafka_rest_create_cluster_api}}"
+    headers:
+      Content-Type: "application/x-www-form-urlencoded"
+  register: results

@@ -1,0 +1,61 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+#
+# Update producers- event generators
+#
+# ansible-playbook -i ../../../../test/inventory/artifactory-producer-test download-producer-maven-repo.yml --private-key /dematic/keys/google/gcp-devops -u spark
+
+
+ # download locally and distribute
+ # faster pattern- so external download incur once.
+ # but we are forced into this since local needs lxml
+
+- name: first get producer jar locally from repo
+  hosts: localhost
+  connection: local
+
+  tasks:
+    - include_vars: "group_vars/producer_client"
+    - name: "loading simulator registry {{producer_dict_conf_file}} for {{producer_key}}"
+      include_vars: "{{producer_dict_conf_file}}"
+    - set_fact: producer_record={{producer_drivers_dict[producer_key]}}
+    - set_fact: producer_classifier_suffix=""
+    - debug: var=producer_record
+
+    - include: ../../../repo/tasks/download-artifact-from-maven-repo.yml
+      vars:
+        artifact_repo_group_id: "{{producer_record.artifact_repo_group_id}}"
+        artifact_id: "{{producer_record.artifact_id}}"
+        artifact_owner: "{{local_artifact_user}}"
+        artifact_dest_dir: "{{local_artifact_location}}"
+        artifact_dest_fqn: "{{local_artifact_location}}/{{producer_record.jar}}"
+        artifact_target_version: "{{repo_target_version|default(repo_target_version_default)}}"
+        artifact_classfier_suffix: "{{producer_record.producer_classifier_suffix|default(producer_classifier_suffix)}}"
+  #  - name: dynamically create copy_client group  then below play can be used modularly
+  #    add_host:
+  #      name: "{{ item }}"
+  #      groups: copy_client
+  #    with_items: "{{groups.producer_client}}
+
+
+# distribute to clients
+- name: "Copy over simulator jar file to clients"
+  hosts: producer_client
+  become: yes
+  tasks:
+    - include_vars: "{{producer_dict_conf_file}}"
+    - set_fact: producer_record={{producer_drivers_dict[producer_key]}}
+    - debug: var=producer_record
+    #- debug: var=hostvars
+    - name: "create simylator destination {{producer_client_location}} if needed"
+      file: path={{producer_client_location}} state=directory owner={{artifact_owner}}
+    - name: "Copy over simulator artifacts from local"
+      copy:
+        src: "{{local_artifact_location}}/{{item}}"
+        dest: "{{producer_client_location}}/{{item}}"
+        owner: "{{artifact_owner}}"
+        group: "{{artifact_owner}}"
+      with_items:
+        - "{{producer_record.jar}}"
+        - "{{producer_record.jar}}.meta"
+
+

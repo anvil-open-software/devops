@@ -1,0 +1,60 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# queries YARN to see if
+# must pass in variables
+# yarn_master_ip
+# spark_driver_class
+
+# test locally with:
+# ansible-playbook -i ../inventory/test_local_analytics -c local test_rest_json.yml
+
+# fails when
+#   1. URL not reachable (connection not reachable)
+#   2. Driver in question is "FAILED" or "KILLED"
+# populates target_yarn_success_status when successful
+
+  # When YARN first starts up, URL returns blank {  "apps": null  }
+  # this UGLY filter is until Ansible 2.0 more gracefully allows for tasks to be included
+  - set_fact: yarn_admin_url="http://{{yarn_master_ip}}:8088/ws/v1/cluster/apps"
+  - name: "Get list of current YARN apps running or wait until an app is launched from {{yarn_admin_url}} for driver {{spark_driver_class}} "
+    uri: url="{{yarn_admin_url}}" body_format=json return_content=yes
+    register: yarn_response
+    until: yarn_response.json.apps is defined and yarn_response.json.apps.app is defined
+                and yarn_response.content.find('RUNNING')>-1
+                and yarn_response.content.find(spark_driver_class)>-1
+                and yarn_response.content.find('FAILED')<0
+    retries: "{{yarn_status_retries}}"
+    delay: "{{yarn_status_delay_in_seconds}}"
+
+  - set_fact: yarn_apps="{{yarn_response.json.apps.app}}"
+  - debug: var=yarn_apps
+    when: debug_level is defined and debug_level=="info"
+
+
+  - name: "Set target_yarn_app_status for {{spark_driver_class}}"
+    set_fact: target_yarn_app_status="{{item['state']}}"
+    with_items: "{{yarn_apps}}"
+    when: item.name==spark_driver_class
+
+ # might also look at latest time stamp in case we do kill scenarios
+  - debug: var=target_yarn_app_status
+  - name: Fail when status is either FAILED or KILLED
+    fail: msg="The driver failed to launch due to:{{ yarn_response}}"
+    when: target_yarn_app_status == "FAILED" or target_yarn_app_status == "KILLED"
+
+  - shell: echo {{target_yarn_success_status}}
+    register: target_yarn_success_status
+  - debug: var=yarn_response
+
+  - set_fact:
+      target_yarn_success_status: "{{item['state']}}"
+      target_tracking_url: "{{item['trackingUrl']}}"
+      target_yarn_app_id: "{{item['id']}}"
+    with_items: "{{yarn_response.json.apps.app}}"
+    when: item.name==spark_driver_class and item.state=="RUNNING"
+
+  #- debug: var=hostvars['localhost']
+  - debug: var=target_yarn_app_id
+
+
+
+

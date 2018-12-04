@@ -1,0 +1,40 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# to run locally:
+# ansible-playbook -i /dematic/gitazure/devops-config/ansible/roles/influxdb/inventory/test-demo manage-influxdb-databases.yml --private-key /dematic/keys/devops.pem -u devops
+
+# Requires Ansible 2.5+
+#
+# In order to run this on jenkins, see https://github.com/ansible/ansible/issues/38204
+# Use the workaround mentioned, do not use python-influxdb module but:
+# sudo apt remove python-influxdb
+# sudo apt install python-pip
+# sudo pip install influxdb
+#
+
+
+- name: "create user and database"
+  hosts: localhost
+  tasks:
+    - name: "Create an admin user on remote host using custom login credentials"
+      influxdb_user:
+        user_name:  "{{influxdb_user}}"
+        user_password: "{{influxdb_password}}"
+        admin: yes
+        hostname: "{{ influxdb_server }}"
+
+    - name: "Drop database {{influxdb_database}} if it exists"
+      influxdb_database:
+        hostname: "{{influxdb_server}}"
+        database_name: "{{influxdb_database}}"
+        state: absent
+      when: influxdb_drop_database
+
+    - name: "Create  {{influxdb_database}} database with credentials"
+      influxdb_database:
+        hostname: "{{influxdb_server}}"
+        username: "{{influxdb_user}}"
+        password: "{{influxdb_password}}"
+        database_name: "{{influxdb_database}}"
+        state: present
+      when: influxdb_create_database

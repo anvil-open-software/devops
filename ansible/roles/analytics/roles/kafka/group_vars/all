@@ -1,0 +1,54 @@
+# because this is being used for both kafka and zookeeper nodes, we set it to all
+remove_all_previous_kakfa_installs: false
+kafka_version: 0.11.0.2
+scala_version: 2.11
+
+
+install_dir: "/opt/kafka"
+kafka_download_version: "kafka_{{scala_version}}-{{kafka_version}}"
+kafka_download_url: "http://apache.mirrors.lucidnetworks.net/kafka/{{kafka_version}}/kafka_2.11-{{kafka_version}}.tgz"
+
+kafka_base_dir: "/opt/kafka_latest"
+
+kafka_bin_dir: "/opt/kafka_latest/bin"
+kafka_manager_dir: "/opt/kafka_manager_latest"
+kafka_config_dir: "/opt/kafka_latest/config"
+
+# used for generic
+kafka_user: kafka
+kafka_group: kafka
+
+# note log in kafka is not output logs but actually the appended event data
+kafka_log_data_dir: "{{kafka_log_data_path_override|default('/mnt/kafka/data-logs')}}"
+zookeeper_data_dir: "{{zk_data_path_override|default('/data_1/zk/data')}}"
+default_kafka_num_partitions: 3
+
+
+# override by size, about 50GB as default, override from jenkins profile runs
+kafka_log_retention_bytes: 50073741824
+
+# shorter default for performance testing so we can keep disk drives small as possible since GCP costs are high
+# you have to pay for disk all the time even if you don't have machine on...
+log_retention_hours: 24
+
+
+zookeeper_port: 2181
+jmx_port: 7199
+
+kafka_zookeeper_connection: "{{kafka_zookeeper_primary}}:{{zookeeper_port}}"
+
+kafka_port_test_timeout_seconds: 90
+
+# Yahoo kafka manager UI defaults
+kafka_mgr_host: "{{kafka_zookeeper_primary}}"
+kafka_manager_version_only: 1.3.3.8
+
+kafka_mgr_nexus_url: "{{nexus_base_api}}content?g=com.yahoo&r=releases&a=kafka-manager&v={{kafka_manager_version_only}}&e=zip"
+kafka_mgr_download_version: "kafka-manager-{{kafka_manager_version_only}}"
+kafka_mgr_zip_file: "{{kafka_mgr_download_version}}.zip"
+kafka_mgr_download_fqn: "{{install_dir}}/{{kafka_mgr_zip_file}}"
+
+# see https://community.hortonworks.com/articles/49789/kafka-best-practices.html
+kafka_jvm_ops: "-Xmx4G -Xms2G"
+kafka_perf_opts: "-XX:MetaspaceSize=96m -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:G1HeapRegionSize=16M -XX:MinMetaspaceFreeRatio=50 -XX:MaxMetaspaceFreeRatio=80"
+kafka_user_timezone: "America/Los_Angeles"

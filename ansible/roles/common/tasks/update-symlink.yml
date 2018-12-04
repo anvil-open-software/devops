@@ -1,0 +1,15 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+- stat: path={{link_target_dir}}
+  register: sym
+- debug: var=sym
+
+- name: "make sure {{link_target_dir}} is unlinked"
+  file:  path="{{link_target_dir}}" force=yes  state=absent
+
+# DLABS-995 since ansible 2.1.2.0 upgrade, symlink behavior has broken with python 2.7.12 so we do not use file module
+#file: path={{link_source_dir}} state=absent
+
+# stay with the classics
+- name: "symlink {{link_target_dir}} to {{link_source_dir}}"
+  command: "ln -s {{link_source_dir}} {{link_target_dir}}"
+

@@ -1,0 +1,19 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# probably could do a better job with figuring out if it needs to run
+# since unfortunately changing to same size still takes 10+ seconds
+# and appears to be not a noop,  i.e. had instances fail
+
+
+- name: "Following vms will be resized to {{azure_vm_size}}"
+  debug: msg="{{ instanceids }}"
+
+- name: "resize vm to {{azure_vm_size}}"
+  shell: "az vm resize --ids {{item}} --size {{azure_vm_size}}"
+  with_items: "{{instanceids}}"
+  async: "{{async_task_completion_seconds}}"
+  poll: 0
+  register: async_results
+
+- name: "Check resize async results"
+  include: check-async-results.yml

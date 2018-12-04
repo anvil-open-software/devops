@@ -1,0 +1,5 @@
+# used only for local debugging to do syntax check, i.e. run
+#    ansible-playbook --syntax-check -i test_local_hosts install-aws-mon.yml
+
+[local]
+127.0.0.1

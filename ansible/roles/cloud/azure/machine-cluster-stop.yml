@@ -1,0 +1,39 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+#  To be deleted.
+# to run locally:
+# ansible-playbook -i /dematic/gitazure/devops-config/ansible/roles/kafka/inventory/kafka-devops-cluster -c local  machine-cluster-stop.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+# stop machine instances based on cluster tag filter criteria. will wait if any of them are in stopped state.
+# caller inputs:
+# cluster_tag and cluster_name
+
+  vars:
+    az_vm_stop_cmd_by_id: "az vm stop --ids"
+  tasks:
+    - name: "Get all instance names with matching {{cluster_tag}}={{cluster_name}}"
+      shell: az resource list --tag "{{cluster_tag}}={{cluster_name}}" --query "[?type=='Microsoft.Compute/virtualMachines'].id" -o tsv
+      register: result
+    - set_fact: instanceids="{{result.stdout|replace('\n', ' ')}}"
+
+    - name: "Following vms will be stopped with command"
+      debug: msg="{{az_vm_stop_cmd_by_id}} {{ instanceids }}"
+
+    - name: Stop machine instances matching filter. Note cloud api by default until machines are fully stopped.
+      shell: "{{az_vm_stop_cmd_by_id}} {{instanceids}}"
+      register: result
+
+    - debug: var=result
+
+    - block:
+        - name: Deallocate machine instances matching filter.
+          shell: "az vm deallocate --ids {{instanceids}}"
+          register: result
+        - debug: var=result
+      when: azure_deallocate_vm
+
+

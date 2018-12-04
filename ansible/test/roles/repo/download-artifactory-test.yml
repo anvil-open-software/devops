@@ -1,0 +1,26 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# Copyright 2018, Dematic, Corp.
+
+#
+# Update the kinesis event generators
+#  ansible-playbook -i "localhost," -c local  download-artifactory-test.yml
+
+- name: test connection to artifactory
+  hosts: all
+  become: no
+  vars:
+    repo_base_api: "http://yourartifactory/artifactory/api/storage/"
+    #nexus_base_api: "http://yourartifactory/artifactory/api/downloadRelease/"
+    repo_parameters: "libs-release-local/spark/jobserver/job-server_2.11/0.5.1"
+    repo_download_url: "{{repo_base_api}}{{repo_parameters}}"
+
+  tasks:
+    - name: "test repo access"
+      get_url:
+        url: "{{repo_download_url}}"
+        force: yes
+        dest: "/tmp"
+        url_username: "{{repo_username}}"
+        url_password: "{{repo_password}}"
+      register: results
+    - debug: var=results

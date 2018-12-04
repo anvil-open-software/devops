@@ -1,0 +1,3 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+cassandra_creds:  "-u {{cassandra_app_user}} -p {{cassandra_app_password}}"
+cassandra_sql_cmd: "cqlsh {{cassandra_host}} {{cassandra_creds}}"

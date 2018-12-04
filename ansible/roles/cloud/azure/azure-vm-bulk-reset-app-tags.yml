@@ -1,0 +1,32 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+# to run locally:
+# ansible-playbook -i /dematic/gitazure/devops-config/ansible/roles/kafka/inventory/kafka-devops-cluster -c local azure-vm-bulk-reset-app-tags.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+
+ # actual cli   is using something like:
+#  az vm update --resource-group APPGRP-ASG-DEVOPS-SANDBOX-RG --name kafka-devops-broker-1 --set tags.prometheus_job_name=devops-kafka
+##
+
+  tasks:
+    - include_vars: "{{azure_global_var_file}}"
+    - include_vars: "{{azure_resource_group_var_file}}"
+
+    - name: "Get all instance names with matching tag {{query_cluster_tag}} is {{query_cluster_name}}"
+      shell: az resource list --tag "{{query_cluster_tag}}={{query_cluster_name}}" --query "[?type=='Microsoft.Compute/virtualMachines'].name" -o tsv
+      register: result
+    - set_fact: instanceids="{{result.stdout.split('\n')}}"
+
+    - name: "Update new tags for {{result.stdout}}"
+      shell: "az vm update --resource-group {{azure_resource_group}} --name {{item}}
+                  --set tags.app-category={{app_category}}
+                  --set tags.app-name={{app_name}}
+                  --set tags.app-cluster-member-type={{app_cluster_member_type}}
+                  --set tags.app-cluster-id={{app_cluster_name}}
+                  --set tags.app-combo-id={{app_combo_id}}
+                  --set tags.prometheus_job_name={{prometheus_job_name}}"
+      with_items: "{{instanceids}}"

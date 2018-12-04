@@ -1,0 +1,23 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# for all spark cluster instances
+
+spark_root : "/opt/spark"
+spark_latest: "{{spark_root}}/spark-latest/"
+
+# too much work to refactor above
+spark_latest_symlink: "{{spark_root}}/spark-latest"
+
+# use temp drive to speed things up
+spark_temp_root: "/mnt/spark"
+spark_driver_location: "{{spark_temp_root}}/drivers"
+spark_work_dir: "{{spark_root}}/work"
+
+spark_script_dir: "{{spark_latest}}/bin"
+spark_logs_dir: "{{spark_latest}}/logs"
+spark_conf_dir: "{{spark_latest}}/conf"
+
+# todo this is currently the YARN HDFS pointer (can't just put it in yarn group var since it's not used to launch)
+spark_checkpoint_dir: "/user/spark/checkpoints"
+
+
+

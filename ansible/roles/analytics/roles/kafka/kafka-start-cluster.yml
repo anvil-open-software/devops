@@ -1,0 +1,103 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+# to run locally:
+# ansible-playbook -i /dematic/git/devops-config/ansible/roles/kafka/inventory/kafka-devops-cluster kafka-start-cluster.yml --private-key /dematic/keys/google/gcp-devops
+
+# by default
+#  0. update config files (use skip_configure_kafka to skip)
+#  1. start zookeeper  (use skip_zookeeper_start to skip)
+#  2. start kafka nodes
+#  3. start
+
+
+- name: "verify and symlink kafka version so you can switch between versions"
+  hosts: all
+  become: yes
+  tasks:
+    - block:
+      - name: "make sure symlink /opt/kafka_latest points to target version {{kafka_download_version}}"
+        file: src="{{install_dir}}/{{kafka_download_version}}" dest=/opt/kafka_latest owner=kafka group=kafka state=link
+
+# todo, think about moving it up two levels just so vars will be auto included...
+- name: "update system files"
+  hosts: all
+  become: yes
+  tasks:
+    - block:
+      - name: remove all loop back addresses in hosts file
+        copy: src=/etc/hosts dest=/tmp/hosts.bak backup=yes remote_src=True
+      - lineinfile : dest=/etc/hosts regexp='^(127\.0\.0\.1)' state=absent
+
+      - set_fact: ntp_service=ntpd
+      - set_fact: ntp_service=ntp
+        when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+      - name: "make sure ntpd service started"
+        # even though this runs at install time and amazon linux has no issues, centos appears not to...
+        service: name="{{ntp_service}}" state=started enabled=yes
+
+      # [~]cat /proc/sys/fs/file-max
+      #  3079428
+      - name: "increase linux file handle limits for user"
+        pam_limits: domain={{kafka_user}} limit_type=soft limit_item=nofile value=32768
+      - pam_limits: domain={{kafka_user}} limit_type=hard limit_item=nofile value=100000 use_max=yes
+      - template: src="templates/{{item}}.j2" dest="/{{item}}"
+        with_items:
+        - etc/profile.d/kafka.sh
+        - home/kafka/.bashrc
+      when: not(skip_configure_kafka is defined and skip_configure_kafka=="true")
+    - name: "purge all data logs and run logs for kafka if purge_kafka_data_logs {{purge_kafka_data_logs}}"
+      include: tasks/kafka-purge-logs.yml
+
+- name: "Start zookeeper"
+  hosts: zookeeper-nodes
+  vars:
+  tasks:
+    - block:
+        - name: Config zookeeper
+          include: tasks/kafka-zookeeper-config.yml
+        - name:  Start zookeeper
+          shell:  "(nohup {{kafka_bin_dir}}/zookeeper-server-start.sh {{kafka_config_dir}}/zookeeper.properties)&"
+          register: launch_results
+        - debug: msg="{{launch_results}}"
+        # todo set zookeeper instead of inventory_hostname
+        - name: Wait for zookeeper to come up
+          wait_for: host="{{ inventory_hostname }}" port={{zookeeper_port}} delay=3 timeout=60 state=started
+      when: not(skip_zookeeper_start is defined and skip_zookeeper_start=="true")
+    # todo check to see zookeeper started successfully. even if shell script launched successfully, it can still fail
+    # due to configuration issues.
+
+- name: "Start kafka nodes"
+  hosts: kafka-nodes
+  become: no
+  vars:
+     kafka_launch_cmd: "env JMX_PORT={{jmx_port}} {{kafka_bin_dir}}/kafka-server-start.sh {{kafka_config_dir}}/server.properties"
+
+  tasks:
+    - block:
+      - name: "Configure kafka nodes"
+        include: tasks/kafka-config.yml
+        tags:
+          - kafka-config
+      - file: path="{{kafka_log_data_dir}}" state=directory owner=kafka group=kafka
+        become: yes
+      - name: "launch kafka with {{kafka_launch_cmd}}"
+        shell: "(nohup {{kafka_launch_cmd}} )&"
+        environment:
+          KAFKA_HEAP_OPTS: "{{kafka_jvm_ops}}"
+          KAFKA_JVM_PERFORMANCE_OPTS: "{{kafka_perf_opts}}"
+        # adding JMX_PORT port this way appeared not to work, not sure it was due to nohup?
+        register: launch_results
+
+      # we dump message here in case there were warnings...
+      - debug: msg="{{launch_results}}"
+      # kafka script does NOT fail with return code even when it did not launch, but returns stderr.
+      - fail: msg="{{launch_results.stderr}}"
+        when: launch_results.stderr is defined and (launch_results.stderr|length > 0)
+      when: not(skip_kafka_start is defined and skip_kafka_start=="true")
+    # todo check to see kafka nodes
+
+# call separately in jenkins
+#- include: kafka-healthcheck.yml
+
+- include: kafka-manager-start-server.yml

@@ -1,0 +1,7 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+- name: remove known_hosts to start from a clean slate, otherwise ssh between nodes
+  file: path="/home/{{target_user}}/.ssh/known_hosts state=absent"
+  when: clean_known_hosts is defined
+
+- name: copy ssh config StrictHostKeyChecking
+  copy: src="../../files/.ssh/" dest="/home/{{target_user}}/.ssh" mode="u+rw,g-rw,o-rw" owner="{{target_user}}"

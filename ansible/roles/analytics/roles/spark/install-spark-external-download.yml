@@ -1,0 +1,32 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+
+  # upgrade to latest version of Spark from apache
+
+# to run locally:
+# ansible-playbook -i /dematic/gitlab/devops-config/ansible/roles/spark/inventory/yarn-devops install-spark-external-download.yml --private-key /dematic/keys/google/gcp-devops  -u spark
+
+
+- name: "Install spark or update with newer version"
+  hosts: spark
+  vars:
+      download_url: "{{spark_download_base_url}}/{{spark_fqn_version}}.tgz"
+  tasks:
+    - name: "Create spark directories {{spark_base}}"
+      file: path={{spark_base}} state=directory owner={{spark_user}}
+      become: yes
+
+    - name: "completely wipe out old version to start from scratch {{spark_base}}/{{spark_fqn_version}}"
+      file: path={{spark_base}}/{{spark_fqn_version}} state=absent
+
+    - name: "Unarchive {{download_url}} to {{spark_base}} if {{spark_fqn_version}} does not exist"
+      unarchive: src={{download_url}} dest={{spark_base}} copy=no creates=no owner=spark group=spark
+
+    - include: ../../../common/tasks/update-symlink.yml
+      vars:
+        link_target_dir: "{{spark_latest}}"
+        link_source_dir: "{{spark_base}}/{{spark_fqn_version}}"
+
+
+
+

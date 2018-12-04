@@ -1,0 +1,28 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+   # checks to see ec2 instances are running that do not have RUN_ALWAYS tag
+   # send in from jenkins: jenkins
+
+   # actual ec2 command is using something like:
+   # aws ec2 describe-instances --output text --region us-east-1
+   #    --query 'Reservations[*].Instances[*].{ID:InstanceId,IP:NetworkInterfaces[*].PrivateIpAddresses[*].PrivateIpAddress}'
+   #    --filter Name=tag:KCL_GROUP,Values=dev
+
+  vars:
+    line_feed: "\n"
+    # region: us-west-1
+  tasks:
+    # very sensitive to substitutions. DO NOT try to use more substitutions
+    - name: Get all running ec2 instance ids that do not have  RUN_ALWAYS tag defined.
+      shell: aws ec2 describe-instances --output text --region {{region}} --query "Reservations[].Instances[].{InstanceId:InstanceId,Tags:Tags[?Key==\`RUN_ALWAYS\`]}[?Tags!=null] | [?length(Tags)==\`0\`].InstanceId"  --filters "Name=instance-state-name,Values=running"
+      register: result
+    - set_fact: instances="{{result.stdout}}"
+    - debug: msg=" {{instances}} "
+
+    - name: Fail if any instances exist. AWSMSG* prefix and suffix for parsing by jenkins
+      fail: msg="{{line_feed}} AWSMSGBEGIN {{line_feed}} The following instances are still running -  {{result.stdout}} {{line_feed}} AWSMSGEND"
+      when: (instances|length > 0)

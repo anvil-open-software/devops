@@ -1,0 +1,23 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+
+
+# to run locally
+# ansible-playbook -i /dematic/git/devops-config/ansible/roles/kafka/inventory/kafka-producer-dev init-producer.yml --private-key /dematic/keys/devops.pem -u devops
+
+- name: init producer
+  hosts: producer_client
+  become: yes
+  tasks:
+    - name: create producer client user
+      include: ../linux/tasks/create-user.yml target_user="{{producer_client_user}}"
+    - include: tasks/configure-producer.yml
+
+- name: init producer
+  include: install-gnu-parallel.yml
+
+
+
+
+
+

@@ -1,0 +1,1 @@
+For kafka, this will not be needed as we use the embedded zoo keeper

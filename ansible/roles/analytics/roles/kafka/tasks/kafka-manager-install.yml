@@ -1,0 +1,30 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+  - file: path="{{install_dir}}" state=directory owner=kafka
+
+  - name: remove old versions if any
+    file: path="{{install_dir}}/{{kafka_mgr_download_version}}" state=absent
+    become: yes
+
+  - include: ../../../../repo/tasks/download-artifact-from-maven-repo.yml
+    vars:
+      artifact_owner: kafka
+      artifact_id: "kafka-manager"
+      artifact_dest_dir:  "{{local_artifact_location}}"
+      artifact_repo_group_id: "com.yahoo"
+      artifact_target_version: "{{kafka_manager_version_only}}"
+      artifact_repo_type: "release"
+      artifact_dest_fqn: "kafka_mgr_download_fqn"
+      artifact_classfier_suffix: ""
+
+  - name: unpack kafka manager dist
+    unarchive: src={{kafka_mgr_download_fqn}} dest={{install_dir}} copy=no creates=no owner=kafka
+
+  - file: path="{{install_dir}}/{{kafka_mgr_download_version}}" state=directory owner=kafka group=kafka recurse=true
+    become: yes
+
+  - name: create symlink to /opt/kafka/kafka_manager_latest
+    file: src="{{install_dir}}/{{kafka_mgr_download_version}}" dest="{{kafka_manager_dir}}" owner=kafka group=kafka state=link
+
+  - name: remove zip file
+    file: path={{kafka_mgr_download_fqn}} state=absent

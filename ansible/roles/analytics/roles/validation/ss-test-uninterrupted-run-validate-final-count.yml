@@ -1,0 +1,35 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# ansible-playbook -i  /dematic/git/devops-config/ansible/roles/validation/inventory/dev-cluster \
+# test-uninterrupted-run-validate-final-count.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+# vanilla case where you wait a specific amount of time and do a final count.
+# can be used after killing jvms
+
+
+- name: "sleep specified amount of time"
+  hosts: localhost
+  tasks:
+    - name: "Sleeping {{run_duration_in_minutes}} minutes"
+      pause: minutes="{{run_duration_in_minutes}}"
+      when: (run_duration_in_minutes|int) >0
+
+- name: "make sure app had a lot of jobs"
+  include: ../yarn/validation/validate_yarn_launched_spark_driver_metric.yml
+  vars:
+    less_than_eq_value: 2000000
+    greather_than_eq_value: 10
+
+# when does NOT work with includes making this painful...
+# See https://github.com/ansible/ansible/issues/17702 which is fixed in 2.2
+# to: SS have to redo making use of batches.
+#- name: "Wait until spark batches drained to zero 0"
+#  include: ../yarn/validation/wait_until_spark_drains.yml
+#  tags:
+#    - wait_until_spark_drains
+
+- name: "Run final validation counts"
+  include: ss-validate-driver-against-producer.yml
+  when:
+    - validate_driver_against_producer
+  tags:
+    - validate-driver-against-producer

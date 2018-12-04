@@ -1,0 +1,14 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+- yum: name=ntp state=latest
+- service: name=ntpd state=started enabled=yes
+
+- name: check ntp actually up running
+  cmd: ntpstat
+  register: ntpstatus
+
+- debug: var=ntpstatus
+# todo there appears not to be a clear status but text which needs to be fished out...
+# synchronised to NTP server (132.163.4.102) at stratum 2
+
+

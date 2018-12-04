@@ -1,0 +1,22 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# Gives the summed partition offset of given {{kafka_topic}} and {{kafka_bootstrap_servers}} starting at 0
+
+    # we have to explicitly include this var filewhen this file is further included top level from validation
+    - include_vars: group_vars/all
+
+    - name: "Write current partition counts of specific topic to file temp_offset_file "
+      shell: "{{kafka_bin_dir}}/kafka-run-class.sh kafka.tools.GetOffsetShell --broker-list {{kafka_bootstrap_servers}} --topic  {{kafka_topic}}  --time -1>{{temp_offset_file}}"
+     # kafka-run-class.sh kafka.tools.GetOffsetShell --broker-list '10.x.x.x:9092,10.x.x2.x:9092' --topic  regr_customer  --time -1
+     # returns something like:
+     #    regr_customer:8:809144
+     #    regr_customer:3:809140
+     #    regr_customer:2:809164
+     #    .....
+
+    - name: "Strip partition labels from topic output and sum all the lines to a final count"
+      shell: "sed -r 's/^.*://'  {{temp_offset_file}} | awk '{s+=$1} END {print s}'"
+      register: result
+    - debug: var=result
+
+    - name: "kafka_summed_partition_offset has the final count"
+      set_fact: kafka_summed_partition_offset="{{result.stdout}}"

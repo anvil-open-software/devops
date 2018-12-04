@@ -1,0 +1,36 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# for seeding historical data
+
+# to run locally:
+# ansible-playbook -i /dematic/gitazure/devops-config/ansible/roles/influxdb/inventory/test-demo influxdb-seed-data.yml --private-key /dematic/keys/devops.pem -u devops
+
+
+- name: "Seed data influxdb"
+  hosts: influxdb
+  become: yes
+
+  tasks:
+
+    - block:
+      - name: "Make download {{influxdb_backup_path}}  folder if it doesn't exist"
+        file: path="{{influxdb_backup_path}}" state=directory mode=0755 owner=devops group=devops
+      - name: "Copy and unpack archive {{influx_seed_data_file}}"
+        unarchive: src="{{influxdb_seed_data_src}}" dest="{{influxdb_backup_path}}"
+      when: influxdb_seed_data_copy
+      tags:
+        - influxdb_seed_data_copy
+
+    - block:
+      - name: "Stop the InfluxDB service"
+        service: name=influxdb state=stopped
+      - name: "influxd restore"
+        command: "influxd restore -database {{influxdb_seed_database_name}} -metadir {{influxdb_meta_path}} -datadir {{influxdb_data_path}} {{influxdb_seed_data_path}}"
+      - command: "chown -R influxdb:influxdb  {{influxdb_data_path}}"
+      - name: "Start the InfluxDB service"
+        service: name=influxdb state=started
+      when: influxdb_seed_data_restore
+      tags:
+      - influxdb_seed_data_restore
+
+

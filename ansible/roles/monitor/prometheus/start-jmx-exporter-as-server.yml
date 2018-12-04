@@ -1,0 +1,52 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: all
+
+ # deploy jmx exporter as a server and not an agent.
+ # to run locally
+
+ # ansible-playbook -i /dematic/gitlab/devops-config/ansible/roles/monitoring/inventory/devops start-jmx-exporter.yml --private-key /dematic/keys/google/gcp-devops  -u devops
+ # ansible-playbook -i ../../../test/inventory/cassandra-dev start-jmx-exporter.yml --private-key /dematic/keys/google/gcp-devops  -u devops
+
+  vars:
+    jmx_exporter_default: "jmx_exporter_default.yml"
+    jmx_exporter_config_path: "{{monitor_jmx_agent_dir}}/conf"
+    jmx_exporter_config: "{{jmx_exporter_config_override|default(jmx_exporter_default)}}"
+    jmx_java_cmd: "java -jar {{monitor_jmx_agent_dir}}/{{monitor_jmx_scraper_jar}} {{monitor_jmx_port}} {{jmx_exporter_config_path}}/{{jmx_exporter_config}}"
+    jmx_exporter_log: "/tmp/prometheus-jmx-exporter-{{monitor_jmx_port}}.log"
+
+  tasks:
+    - block:
+      - name: "Copy over jmx exporter config to {{jmx_exporter_config_path}}"
+        file: path="{{jmx_exporter_config_path}}" state=directory
+      - template: src="templates/{{item}}.j2" dest="{{jmx_exporter_config_path}}/{{item}}"
+        with_items:
+          - "{{jmx_exporter_config}}"
+      tags: update_jmx_exporter_configs
+
+    # pros and cons for linux service for management- but since we will need multiple processes, one for each jvm
+    # better to leave it separate
+
+    - include: ../../analytics/roles/validation/tasks/kill-jvm-by-name.yml
+      vars:
+        jvm_class_name: "jmx_prometheus_httpserver-jar-with-dependencies.jar"
+        spark_class_name: "{{monitor_jmx_port}}"
+      tags:
+        - kill_previous_jvm_exporter
+
+    - name: "start jmx scraper"
+      shell: "(nohup {{jmx_java_cmd}} > {{jmx_exporter_log}} 2>&1)&"
+      register: results
+
+    - debug: var=results
+
+    - shell: "cat {{jmx_exporter_log}}"
+      register: submit_error
+      ignore_errors: True
+
+    - debug: var=submit_error
+    - name: Fail when submit resonse includes Exceptions.
+      fail: var=submit_error
+      when: (submit_error is defined) and ((submit_error.stdout.find('Exception') > -1)
+              or (submit_error.stdout.find('Error') > -1))
+

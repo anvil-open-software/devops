@@ -1,0 +1,19 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: spark
+
+  # build custom dist
+  # note - currently this does not work as the environment setting in the first command in the shell module is not propagating to the second command
+
+  vars:
+    dist_cmd: "./make-distribution.sh --tgz -Pkinesis-asl -Pyarn -Phadoop-2.6 -Dhadoop.version={{yarn_version}} -Dprotobuf.version=2.5.0 -Dscala-{{scala_version}}"
+  tasks:
+    - name: Use the following build command to run manually on the server if the play fails.
+      debug: var=dist_cmd
+
+    - name: switch scala version and make spark distribution
+      shell: "./dev/change-scala-version.sh {{scala_version}} && {{dist_cmd}}"
+      args:
+        chdir: "{{spark_build_fqn}}"
+      register: build_spark_dist_results
+    - debug: var=build_spark_dist_results

@@ -1,0 +1,19 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+  # upgrade to latest version of Spark in nexus
+
+# to run locally:
+# ansible-playbook -i ../../../../test/inventory/centos_yarn_cluster  create-spark-user.yml --private-key /dematic/keys/devops.pem -u centos
+
+# pass in location i.e. local_public_ssh_key_file: "/data/ansible/devops/.ssh/devops.pub"
+# unfortunately I cannot lump this with install-spark as the become_user does not work as expected
+- name: create user and spark dirs
+  hosts: spark
+  become: yes
+  tasks:
+    - block:
+        - set_fact: target_user={{spark_user}}
+        - name: create spark user
+          include: ../linux/tasks/create-user.yml
+
+      tags: create_spark_user

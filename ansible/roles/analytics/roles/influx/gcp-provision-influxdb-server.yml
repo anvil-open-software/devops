@@ -1,0 +1,47 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# to run locally:
+
+
+# provisions influxdb server
+# sent from jenkins:
+    # cluster_member_private_ips_csv
+    # influxdb_name: "dev"
+
+---
+- hosts: localhost
+  become: no
+  vars:
+    gcp_debian_parms: "--image-family debian-9 --image-project debian-cloud "
+    gcloud_create_parms: "      {{gcloud_default_create_parms}} \
+                                {{gcp_debian_parms}}  \
+                                --boot-disk-size {{gcp_boot_disk_size_in_gb}} \
+                                --boot-disk-type {{gcp_boot_disk_type}} \
+                                --tags 'influxdb','{{private_instance_nat_tag}}' \
+                                --metadata 'influx-id={{influxdb_name}},app=influxdb,{{gcp_instance_additional_metadata}}'"
+
+  tasks:
+    # vars_files appears not to work in 2.1 for relative file path no longer work in vars_files in 2.1.
+    - include_vars: "../../../cloud/gcp/group_vars/all"
+    - include_vars: "{{gcp_project_var_file}}"
+
+    - name:  "full command for debugging"
+      debug: msg="{{gcloud_create_command}} influxdb-{{influxdb_name}}-{{ item.replace('.','-') }} \
+                                      {{gcloud_create_parms}}  \
+                                      --private-network-ip  {{ item }}"
+      with_items: "{{cluster_member_private_ips_csv.split(',')}}"
+
+    # note you cannot loop over blocks
+    - name: create compute instance
+      command:  "{{gcloud_create_command}} influxdb-{{influxdb_name}}-{{ item.replace('.','-') }} \
+                     {{gcloud_create_parms}}  \
+                     --private-network-ip  {{ item }}"
+      with_items: "{{cluster_member_private_ips_csv.split(',')}}"
+      register: results
+
+    # todo redo async for faster
+    - name: Wait for SSH to come up
+      wait_for: host="{{ item }}" port=22 delay={{ssh_wait_delay_seconds}} timeout={{ssh_timeout_seconds}} state=started
+      with_items: "{{cluster_member_private_ips_csv.split(',')}}"
+
+

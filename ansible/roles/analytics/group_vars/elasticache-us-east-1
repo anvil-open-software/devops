@@ -1,0 +1,6 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+redis_version: "2.8.22"
+redis_port: 6379
+cache_instance_type_default: "cache.m3.large"
+cache_security_settings: "vpc-private-xxx-subnet"
+cache_security_group_id:  "sg-xxxx"

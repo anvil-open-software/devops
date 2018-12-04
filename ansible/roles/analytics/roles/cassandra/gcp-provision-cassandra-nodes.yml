@@ -1,0 +1,50 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+# to run locally:
+# ansible-playbook -i /dematic/git/devops-config/ansible/roles/cassandra/inventory/cassandra-dev-provision -c local  gcp-provision-cassandra-nodes.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+
+# provisions a kafka-producer
+# sent from jenkins:
+    # cluster_member_private_ips_csv
+    # cassandra_cluster_name: "dev"
+
+# todo: this code is generic enough to be called provision cluster nodes, move to gcp as a task
+
+---
+- hosts: localhost
+  become: no
+  vars:
+    app_name: cassandra
+    gcloud_create_parms: "{{gcloud_default_create_parms}} \
+                            {{gcp_image_parms}} \
+                            --boot-disk-size {{gcp_boot_disk_size_in_gb}} \
+                            --boot-disk-type {{gcp_boot_disk_type}} \
+                            --tags '{{app_name}}','{{private_instance_nat_tag}}' \
+                            --metadata '{{app_name}}-cluster-id={{cassandra_cluster_name}},default-cluster-set-id={{cassandra_cluster_name}},app={{app_name}},dlabs-use=big-data'"
+
+  tasks:
+    # vars_files appears not to work in 2.1 for relative file path
+    - include_vars: "../../../cloud/gcp/group_vars/all"
+    - name: "Add gcp project and subnet vars: {{gcp_project_var_file}}"
+      include_vars: "{{gcp_project_var_file}}"
+
+
+    - debug: msg="{{gcloud_create_command}} {{app_name}}-ip-x-x-x-x {{gcloud_create_parms}}"
+      with_items: "{{cluster_member_private_ips_csv.split(',')}}"
+
+    # note you cannot loop over blocks
+    - name: create compute instance
+      command:  "{{gcloud_create_command}} {{app_name}}-{{cassandra_cluster_name}}-{{ item.replace('.','-') }} \
+                     {{gcloud_create_parms}}  \
+                     --private-network-ip  {{ item }} "
+      with_items: "{{cluster_member_private_ips_csv.split(',')}}"
+      register: results
+
+    # todo redo async for faster
+    - name: Wait for SSH to come up
+      wait_for: host="{{ item }}" port=22 delay={{ssh_wait_delay_seconds}} timeout={{ssh_timeout_seconds}} state=started
+      with_items: "{{cluster_member_private_ips_csv.split(',')}}"
+
+
+

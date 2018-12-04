@@ -1,0 +1,93 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: spark
+  vars:
+    #
+    # Generic wrapper for launching asynchronously single spark driver based on spark_driver_key hashed from map drivers.yml
+    #
+    # parameters:
+    #   spark_driver_key
+    #   spark_checkpoint_launch_key - uniquely identifies the specific driver
+    #   submit_mode
+          # For standalone cluster it will be something like...
+          # submit_mode: "--master {{master_url}} --deploy-mode cluster"
+
+    driver_url: "file:///{{spark_driver_location}}/{{spark_driver_jar}}"
+    checkpoint_driver_dir: "{{spark_checkpoint_dir}}/{{spark_driver_key}}/{{spark_checkpoint_launch_key}}"
+    spark_checkpoint_args: " --conf spark.checkpoint.dir={{checkpoint_driver_dir}} "
+    # actual driver parameters sent in via jenkins
+    spark_submit_command: "{{spark_target_version_dir}}/bin/spark-submit \
+                                  {{spark_checkpoint_args}} \
+                                  --class {{spark_driver_class}} \
+                                  {{spark_submit_mode}}  \
+                                  {{spark_launch_files}} \
+                                  {{spark_launch_config_file}} \
+                                  {{spark_launch_all_other_config_parms}} \
+                                  {{spark_driver_extra_java_options}} \
+                                  {{spark_executor_extra_java_options}} \
+                                  {{spark_extra_class_path}} \
+                                  {{spark_driver_executor_resource_parms}} \
+                                  {{driver_url}} \
+                                  {{driver_parameters}}"
+    jvm_async_wait_time: 30
+    nohup_launch_cmd: "(nohup {{spark_submit_command}})&"
+  environment:
+    SPARK_HOME: "{{spark_target_version_dir}}/"
+  tasks:
+
+    - block:
+      - name: "debug environment variables"
+        shell: "env"
+        register: results
+      - debug: var=results
+      when: update_spark_target_version is defined and update_spark_target_version
+
+    - name: add spark configuration profiles
+      copy: src="files/conf" dest="{{spark_latest}}"
+      tags:
+        - update-spark-configuration
+
+    # there were two group vars, one from the top level from old days, need to refactor sometime...
+    - include_vars: ../../group_vars/spark
+    - debug:  msg="reading driver registry from {{spark_driver_conf_file}}"
+    - include_vars: "{{spark_driver_conf_file}}"
+    - debug:  msg="{{spark_drivers_dict[spark_driver_key]}}"
+
+    - name: fetch spark jar and driver record by name
+      #note that ansible flattens out item to a string, not a record
+      set_fact: spark_driver_jar={{spark_drivers_dict[spark_driver_key].jar}}
+    - set_fact: spark_driver_class={{spark_drivers_dict[spark_driver_key].class}}
+
+    - set_fact: spark_packages=""
+    - name: "set package if defined used for structured streaming"
+      set_fact: spark_packages={{spark_drivers_dict[spark_driver_key].packages}}
+      when: spark_drivers_dict[spark_driver_key].packages is defined
+
+    # standalone cluster returns right away but yarn does not and needs asynchronous launch
+    # also between ansible versions debug print command broke with quotes not being preserved
+    - debug: msg="{{spark_submit_command}}"
+
+    - set_fact: submit_outputfile_root="/tmp/spark_submit_{{spark_driver_key}}"
+
+    # do NOT use spark.yarn.submit.waitAppCompletion which will just shut down the long running program
+    - name: "submit driver program asynchronously in the case of YARN with {{spark_target_version_dir}}"
+      shell: "{{spark_submit_command}}  2>{{submit_outputfile_root}}.err 1>{{submit_outputfile_root}}.out"
+      async: "{{jvm_async_wait_time}}"
+      poll: 0
+
+    - name: sleep a few seconds for error log output
+      pause: seconds=5
+
+    - debug: msg="Your error output is written to {{submit_outputfile_root}}.err"
+
+    # tail appears not to capture the entire text, only three lines
+    # redo in ansible 2.0
+    - shell: "grep -in -e error -e exception {{submit_outputfile_root}}.err"
+      register: submit_error
+      ignore_errors: True
+
+    - debug: var=submit_error
+    - name: Fail when submit resonse includes Exceptions.
+      fail: var=submit_error
+      when: (submit_error is defined) and ((submit_error.stdout.find('Exception') > -1)
+              or (submit_error.stdout.find('Error') > -1))

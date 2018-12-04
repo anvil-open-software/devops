@@ -1,0 +1,25 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: all
+# initial user configuration for cassandra, change default user password, default password.
+# add a second user, which should be something like
+#           cqlsh 10.x.x.x -u spark -p spark
+# to run locally:
+# ansible-playbook -i ../../../../test/inventory/cassandra configure-cassandra-users.yml --private-key /dematic/keys/devops.pem -u spark
+
+  vars:
+    # out of the box creds
+    default_cassandra_cred:  "-u cassandra -p {{old_admin_password}}"
+    new_cassandra_cred:  "-u {{cassandra_app_user}} -p {{cassandra_app_password}}"
+
+  tasks:
+    - name: add spark user, change password
+      # cannot parameterize command as there is a lot of embedded quotes
+      shell: cqlsh {{cassandra_host}} {{default_cassandra_cred}} -e "CREATE USER IF NOT EXISTS {{cassandra_app_user}} WITH PASSWORD '{{cassandra_app_password}}' SUPERUSER;"
+
+    - name: if user did exist and above command, just update to latest password.
+      shell: cqlsh {{cassandra_host}} {{default_cassandra_cred}} -e "ALTER USER {{cassandra_app_user}} WITH PASSWORD '{{cassandra_app_password}}';"
+
+    # login with newly created app user creds to confirm it worked
+    - name: change original admin "cassandra" user with password
+      shell: cqlsh {{cassandra_host}} {{new_cassandra_cred}} -e "ALTER USER cassandra WITH PASSWORD '{{new_admin_password}}';"

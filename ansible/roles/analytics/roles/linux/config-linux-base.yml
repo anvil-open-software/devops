@@ -1,0 +1,31 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: all
+  become: yes
+
+# configures linux base specifically for  DSP and disables host-checking
+
+# to run locally
+# ansible-playbook -i ../../../../test/inventory/kafka-centos  -c local  config-linux-base.yml --private-key /dematic/keys/devops.pem -u centos
+  vars:
+    default_timezone: PST8PDT
+    target_user: devops
+  tasks:
+    - name: "Update hosts file since IT needs to fix azure sandbox DNS setup"
+      include: ../../../common/tasks/update-hostfile.yml
+
+    - name: create wheel group when not present
+      group: name=wheel state=present
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+    - name: setup wheel group not to use password
+      lineinfile: "dest=/etc/sudoers state=present regexp='^%wheel' line='%wheel ALL=(ALL) NOPASSWD: ALL'"
+
+    - name: create devops user
+      include: tasks/create-user.yml
+
+    - name: "distro update for Debian or Ubuntu ansible_distribution={{ansible_distribution}}"
+      include: ../../../common/tasks/debian_linux_dist_update.yml
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+

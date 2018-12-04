@@ -1,0 +1,34 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# test case where YARN application master is shutdown in the middle of a run waiting after {{wait_before_kill_duration_in_minutes}}.
+# Checks to see if YARN restarts. Then will wait out the rest of the run
+#
+
+# ansible-playbook -i  /dematic/git/devops-config/ansible/roles/validation/inventory/dev-cluster \
+# test-wait-kill-and-validate-final-count.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+- name: "STEP1: Sleep before killing jvm"
+  hosts: localhost
+  vars:
+    # minutes it takes for the producer to wrap up, stragglers...
+    producer_winddown_delay_minutes: 3
+  tasks:
+    - name: "sleep {{wait_before_kill_duration_in_minutes}} minutes"
+      pause: minutes="{{wait_before_kill_duration_in_minutes}}"
+      when: (wait_before_kill_duration_in_minutes|int) >0
+
+    - set_fact: second_run_duration={{ ((run_duration_in_minutes|int)-(wait_before_kill_duration_in_minutes|int))|int + (producer_winddown_delay_minutes|int) }}
+    - debug: var=second_run_duration
+
+
+- name: "STEP2: Kill JVM YAM application on YARN node"
+  include: ss-validate-relaunch-after-kill-yarn-application-master.yml
+  tags:
+    - ss-validate-relaunch-after-kill-yarn-application-master
+
+- name: "STEP3: Wait for rest of the batches to complete to validate counts"
+  include: ss-test-uninterrupted-run-validate-final-count.yml
+  vars:
+    run_duration_in_minutes: "{{second_run_duration}}"
+    spark_driver_run_uninterrupted: false
+  tags:
+    - test-uninterrupted-run-validate-final-count

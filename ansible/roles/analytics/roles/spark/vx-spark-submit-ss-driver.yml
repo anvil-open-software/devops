@@ -1,0 +1,147 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: spark
+
+#
+# Local test
+# ansible-playbook -i /dematic/gitlab/devops-config/ansible/roles/spark/inventory/yarn-devops-dsp-cumulative-count vx-spark-submit-ss-driver.yml --private-key /dematic/keys/google/gcp-devops -u spark
+
+#
+  vars:
+    #
+    # Generic wrapper for launching asynchronously single spark driver based on spark_driver_key hashed from map drivers.yml
+    # Supports  structured streaming
+    #
+    # parameters:
+    #   spark_driver_key
+    #   spark_checkpoint_launch_key - uniquely identifies the specific driver
+    #   submit_mode
+          # For standalone cluster it will be something like...
+          # submit_mode: "--master {{master_url}} --deploy-mode cluster"
+    #
+    #
+    # adding scala config, you must add it to the spark.executor.extraClassPath
+    #
+    # https://stackoverflow.com/questions/35509510/how-to-add-a-typesafe-config-file-which-is-located-on-hdfs-to-spark-submit-clus
+
+    driver_url: "file:///{{spark_driver_location}}/{{spark_driver_jar}}"
+    checkpoint_driver_dir: "{{spark_checkpoint_dir}}/{{spark_driver_key}}/{{spark_checkpoint_launch_key}}"
+    spark_checkpoint_args: " --conf spark.checkpoint.dir={{checkpoint_driver_dir}} "
+    spark_submit_cmd_base: "{{spark_target_version_dir}}/bin/spark-submit \
+                                --class {{spark_driver_class}} \
+                                        {{spark_submit_mode}}  \
+                                        {{spark_driver_executor_resource_parms}} \
+                                        {{spark_launch_config_file}} \
+                                        {{spark_launch_all_other_config_parms}} "
+
+    jvm_async_wait_time: 30
+    nohup_launch_cmd: "(nohup {{spark_submit_command}})&"
+    driver_launch_config_dir: "{{spark_base}}/drivers/conf"
+  environment:
+    SPARK_HOME: "{{spark_target_version_dir}}/"
+  tasks:
+
+    - block:
+      - name: "debug environment variables"
+        shell: "env"
+        register: results
+      - debug: var=results
+      when: update_spark_target_version is defined and update_spark_target_version
+
+    - name: "make sure {{spark_target_version_dir}}/bin/spark-submit exists"
+      file: path="{{spark_target_version_dir}}/bin/spark-submit" state=file
+
+    - name: "add spark configuration profiles"
+      copy: src="files/conf" dest="{{spark_latest}}"
+      when: update_spark_config_files
+      tags:
+        - update-spark-configuration
+
+    # there were two group vars, one from the top level from old days, need to refactor sometime...
+    - include_vars: ../../group_vars/spark
+    - debug:  msg="reading driver registry from {{spark_driver_conf_file}}"
+    - include_vars: "{{spark_driver_conf_file}}"
+    - set_fact: spark_driver_record="{{spark_drivers_dict[spark_driver_key]}}"
+    - debug:  msg="{{spark_driver_record}}"
+
+    - name: fetch spark jar and driver record by name
+      #note that ansible flattens out item to a string, not a record
+      set_fact: spark_driver_jar="{{spark_driver_record.jar}}"
+    - set_fact: spark_driver_class="{{spark_driver_record.class}}"
+
+    - block:
+      - name: "Create {{spark_driver_record.typesafe_config_file}} to {{driver_launch_config_dir}} if necessary"
+        file: path="{{driver_launch_config_dir}}" state=directory owner="{{spark_user}}" group="{{spark_user}}"
+      - name: "Template out to {{driver_launch_config_dir}}"
+        template: src="{{typesafe_config_path}}/{{item}}.j2" dest="{{driver_launch_config_dir}}/{{item}}"
+        with_items:
+          - "{{spark_driver_record.typesafe_config_file}}"
+      when: update_spark_config_files and spark_driver_record.typesafe_config_file is defined
+
+    # Add structured streaming packages if defined
+    - set_fact: spark_packages=" "
+    - name: "set package for structured streaming"
+      set_fact: spark_packages="--packages {{spark_driver_record.structured_streaming.packages|default(structured_streaming_kafka_package)}}"
+      when: spark_drivers_dict[spark_driver_key].structured_streaming is defined
+    - debug: var=spark_packages
+
+    - set_fact: spark_driver_jvm_generated_opts=""
+    - set_fact: spark_launch_files_with_generated_versions=""
+    - set_fact: spark_monitor_files="{{spark_driver_location}}/{{monitor_artifact.monitor_jar}}"
+    - set_fact: spark_monitor_launch_conf="--conf 'spark.metrics.conf=prometheus-metrics.properties' --conf spark.executor.extraClassPath='{{monitor_artifact.monitor_jar}}' --conf spark.driver.extraClassPath='dsp-monitor-spark-prometheus.jar'"
+
+    # "default generated opts" gets used by caller to pass in
+    - set_fact: spark_launch_files_generated="{{spark_monitor_files}}"
+    - set_fact: default_monitor_jvm_opts="-Ddematiclabs.monitor.pushGateway.address={{spark_monitor_push_gateway}} -Ddematiclabs.spark.cluster_id={{spark_cluster_id}} -Ddematiclabs.spark.driver.key={{spark_driver_key}} -Ddematiclabs.spark.driver.unique.run.id={{spark_driver_unique_run_id}}"
+
+    - block:
+      - name: "add scala config file and monitor jar"
+        set_fact: spark_launch_files_generated="{{spark_monitor_files}},{{driver_launch_config_dir}}/{{spark_driver_record.typesafe_config_file}}"
+      - set_fact: spark_driver_jvm_generated_opts="-Dconfig.file={{spark_driver_record.typesafe_config_file}}"
+      when: spark_driver_record.typesafe_config_file is defined
+
+    # driver parameters will be sent in via jenkins configured in property files
+
+    - name: "empty out spark_checkpoint_args if skipping checkpointing, note we still have to clean up from prev run"
+      set_fact: spark_checkpoint_args=""
+      when: (spark_skip_checkpoint is defined) and spark_skip_checkpoint
+
+    # keep in single line for now as set_fact does not interpret backlash in the same way as the above var declaration
+    - set_fact: spark_submit_command="{{spark_submit_cmd_base}}  {{spark_packages}}  {{spark_launch_files}} {{spark_checkpoint_args}} {{spark_driver_extra_java_options}}  {{spark_executor_extra_java_options}} {{spark_extra_class_path}} {{driver_url}}  {{driver_parameters}}"
+
+    # Note between some ansible versions debug print command broke with quotes not being preserved
+    - name: "print out spark_submit_command which can be cut and pasted and run in debug situations"
+      debug: msg="{{spark_submit_command}}"
+
+    - set_fact: submit_outputfile_root="/tmp/spark_submit_{{spark_driver_key}}"
+    - name: "Delete previous submit files"
+      file: path="{{submit_outputfile_root}}.out" state=absent
+    - file: path="{{submit_outputfile_root}}.err" state=absent
+
+    # standalone cluster returns right away but yarn does not and needs asynchronous launch
+    # do NOT use spark.yarn.submit.waitAppCompletion which will just shut down the long running program
+    - name: "submit driver program asynchronously in the case of YARN with {{spark_target_version_dir}}"
+      shell: "{{spark_submit_command}}  2>{{submit_outputfile_root}}.err 1>{{submit_outputfile_root}}.out"
+      async: "{{jvm_async_wait_time}}"
+      poll: 0
+      register: shell_error
+      
+    - debug: var=shell_error
+
+    - name: "sleep a few seconds for process to launch, succeed or error to log"
+      pause: seconds=5
+
+    - debug: msg="Your error output is written to {{submit_outputfile_root}}.err"
+
+    # redo in ansible 2.0
+    - name: filter out errors
+      shell: "grep -in -e error -e exception -A 3 {{submit_outputfile_root}}.err"
+      register: submit_error
+      ignore_errors: True
+
+    - block:
+      - debug: var=submit_error
+      - name: "Fail when submit response includes Errors and Exceptions. Will fail even on weak non-fatal Errors"
+        fail: var=submit_error
+        when: ((submit_error.stdout.find('Exception') > -1) or (submit_error.stdout.find('Error') > -1))
+      when: (submit_error is defined)

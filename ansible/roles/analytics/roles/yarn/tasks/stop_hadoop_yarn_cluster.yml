@@ -1,0 +1,14 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+- block:
+  - name:  "Stop YARN based on flag yarn_cluster_stop= {{yarn_cluster_stop}}"
+    command: "{{hadoop_home}}/sbin/stop-yarn.sh"
+    register: results
+  - debug: msg="{{results}}"
+  when: (yarn_cluster_stop is defined and yarn_cluster_stop)
+
+- block:
+  - name:  "Stop DFS based on flag hdfs_cluster_stop= {{hdfs_cluster_stop}}"
+    shell: "{{hadoop_home}}/sbin/stop-dfs.sh"
+    register: results
+  - debug: msg="{{results}}"
+  when: (hdfs_cluster_stop is defined and hdfs_cluster_stop)

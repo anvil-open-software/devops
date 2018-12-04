@@ -1,0 +1,9 @@
+zeppelin_base: "/opt/zeppelin"
+zeppelin_latest: "{{zeppelin_base}}/zeppelin-latest"
+
+
+zeppelin_user: spark
+zeppelin_version: "zeppelin-0.7.0"
+zeppelin_fqn_version: "{{zeppelin_version}}-bin-all"
+zeppelin_download_url: "http://www.gtlib.gatech.edu/pub/apache/zeppelin/{{zeppelin_version}}/{{zeppelin_fqn_version}}.tgz"
+default_zeppelin_spark_master: "yarn-client"

@@ -1,0 +1,20 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: cassandra
+  become: yes
+
+  #
+  # ansible-playbook -i ../../../../test/inventory/cassandra-centos shutdown-cassandra.yml --private-key /dematic/keys/devops.pem -u cassandra
+
+  tasks:
+
+    - name: stop cassandra on non Centos with standard service module
+      service: name=cassandra state=stopped
+      when: ansible_distribution!='CentOS'
+
+      # on centos7, service module fails as it needs systemctl instead of systemd but the command is smart enough figure that out...
+      #  "sudo service cassandra stop" does work on command line but the ansible module does not.
+    - block:
+      - name: start cassandra service for centos using systemctl directly as service module does not work
+        command: "systemctl stop cassandra"
+      when: ansible_distribution=='CentOS'

@@ -1,0 +1,16 @@
+
+# Copyright 2018 Dematic, Corp.
+# Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+---
+
+# although hostPort is more concise, use jmxURL for explicitness
+
+jmxUrl: service:jmx:rmi:///jndi/rmi://127.0.0.1:7199/jmxrmi
+ssl: false
+lowercaseOutputName: false
+lowercaseOutputLabelNames: false
+
+# .* appears not to include everything particularly jvm
+rules:
+    - pattern: ".*"

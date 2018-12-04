@@ -1,0 +1,61 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+   # start ec2 instances based on IP address
+   # send in from jenkins:  target_addresses in comma separated list
+   # supports multiple, wanted to rename but it's a lot of work on jenkins
+
+   # actual ec2 command is using something like:
+   # aws ec2 describe-instances --output text --region us-east-1
+   #    --query 'Reservations[*].Instances[*].{ID:InstanceId,IP:NetworkInterfaces[*].PrivateIpAddresses[*].PrivateIpAddress}'
+   #   --filter Name=private-ip-address,Values=10.x.x.x,10.x.x.x
+
+  vars:
+
+
+    ec2_instanceid_cmd:  "{{ec2_describe_cmd}} --query '{{ec2_field_instanceid}}'  {{filter_parms}}"
+    start_ec2: true
+
+
+  tasks:
+    - set_fact: filter_name="private-ip-address"
+      when: region == "us-east-1"
+    - set_fact: filter_name="network-interface.addresses.association.public-ip"
+      when: region != "us-east-1"
+    - set_fact: filter_parms='--filter Name={{filter_name}},Values={{target_addresses}}'
+
+    # note if it was previously "stopping" state, it cannot start and we have to wait until it is in "stopped" state
+    - name: Make sure instance status not in stopping state, wait until it isn't
+      shell:  "{{ec2_status_cmd}}"
+      register: ec2_status_result
+      until: (ec2_status_result.stdout.find("stopping") == -1)
+      retries: "30"
+      delay: "7"
+
+    - debug: msg="{{ec2_instanceid_cmd}}"
+    - name: Get all ec2 instance ids with matching cluster id
+      local_action: command {{ec2_instanceid_cmd}}
+      register: result
+    - set_fact: instanceids="{{ result.stdout_lines}}"
+    - debug: msg="{{instanceids}}"
+
+    - name: Echo instance ids
+      debug: msg="{{ item }}"
+      with_items: '{{ instanceids }}'
+
+    - name: Start EC2 instances matching filter
+      ec2:
+        state: 'running'
+        instance_ids: "{{ instanceids }}"
+        region: "{{ region }}"
+        wait: True
+
+    # fix with parallel execution when we upgrade to ansible 2.0 as this is not ideal for larger clusters
+    - name: Wait for SSH to come up
+      wait_for: host={{ item }} port=22 delay={{ssh_wait_delay}} connect_timeout={{ssh_connect_timeout}} timeout={{ssh_timeout}}  state=started
+      with_items: target_addresses.split(',')
+      # see if this will handle both single and multiple
+      #when: (wait_for_ssh is defined) and (wait_for_ssh=="true")

@@ -1,0 +1,37 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+# generates rsa keys
+# to run locally:
+# ansible-playbook -i /dematic/git/devops-config/ansible/roles/YARN/inventory/yarn-devops yarn-cluster-ssh-key-setup.yml --private-key /dematic/keys/google/gcp-devops -u spark
+
+- name: "Generate yarn master key for slave access"
+  hosts: yarn-master
+  tasks:
+    - set_fact: public_key_file="/home/{{target_user}}/.ssh/{{key_file_name}}.pub"
+    - name: Creating SSH keys on yarn master if it does not exist
+      shell: "ssh-keygen -N '' -f .ssh/{{key_file_name}}"
+      args:
+          chdir: "~/"
+          creates: ".ssh/{{key_file_name}}"
+
+    - name: "copy public key to local so it can be distributed"
+      file: path="{{master_ssh_public_key_local_dir}}/{{yarn_master_ip}}" state=directory
+    - fetch:
+        fail_on_missing: yes
+        src: "{{public_key_file}}"
+        dest: "{{master_ssh_public_key_local_dir}}/{{yarn_master_ip}}/{{key_file_name}}.pub"
+        flat: yes
+    # fetch by default append hostname/path/key file name,i.e. /10.x.x.x/home/spark/.ssh/
+
+ # I could not get parameter sharing working between plays so we just do file sharing for now
+- name: "Copy over public keys to all the slaves including master"
+  hosts: yarn
+  tasks:
+    #- debug: var=hostvars
+    - name: "copy over public keys to all the slaves"
+      authorized_key:
+        user: "{{target_user}}"
+        key: "{{ lookup('file', '{{master_ssh_public_key_local_dir}}/{{yarn_master_ip}}/{{key_file_name}}.pub') }}"
+        exclusive: no
+
+

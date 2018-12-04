@@ -1,0 +1,107 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+#
+# launches jvms in parallel using gnu parallel
+#
+# caller must pass in
+#      producer_java_class : fully qualified jvm class
+#      producer_config_vars
+#      parallel_parameters to control gnu parallel
+# update_producer_jars,
+# configure_producer_vm,
+# purge_all_clients_logs
+
+
+# to run locally
+# ansible-playbook -i /dematic/gitlab/devops-config/ansible/roles/producer/inventory/kafka-simulator-devops-throughput launch-parallel-producers.yml --private-key /dematic/keys/google/gcp-devops -u spark
+
+# force host to launch one by one
+
+- name: configure producer
+  hosts: producer_client 
+  become: yes
+  tasks:
+    - include: tasks/configure-producer.yml
+      when: configure_producer_vm
+
+- name: launch producer jars
+  hosts: producer_client
+  become: no
+  vars:
+      # actual driver parameters sent in via jenkins, default AWS urls may be defined in ansible
+      java_submit_command: "java {{jvmoptions}} -cp {{producer_jar_fqn}} {{producer_java_class}} {{kcl_parameters}}"
+      # pass in from jenkins until I figure out a way to max out the cores via parallel
+      # kcl_max_processes: 10
+      # parallel_parameters: "--res event_producer -n0 --jobs 0 "
+      parallel_command: "seq {{kcl_max_processes}} | parallel --no-notice  {{parallel_parameters}}  {{java_submit_command}}"
+      #parallel_command: "parallel -n0  {{java_submit_command}} ::: {1..{{kcl_max_processes}}}"
+      jvm_async_wait_time: 100
+  tasks:
+    - include_vars: "{{producer_dict_conf_file}}"
+    - set_fact: producer_record="{{producer_drivers_dict[producer_key]}}"
+    - set_fact: producer_jar_fqn="{{producer_client_location}}/{{producer_record.jar}}"
+    - set_fact: producer_java_class="{{producer_record.class}}"
+
+    - block:
+      - name: "kill all previous java jobs is requested through kill_all_producer_jvm parameter"
+        shell: killall -SIGKILL java
+        ignore_errors: True
+      when: not((kill_all_producer_jvm is defined) and (kill_all_producer_jvm!="true"))
+
+    - block:
+      - name: "wipe out tmp if purge_all_clients_logs=true"
+        shell: rm -f /tmp/*.*
+        ignore_errors: True
+      when: not((purge_all_clients_logs is defined) and (purge_all_clients_logs!="true"))
+
+    - name: "Use last segment of ip address {{ inventory_hostname }} as unique device prefix id"
+      set_fact: hostname_ip_list="{{inventory_hostname.split('.')}}"
+    - set_fact: kafka_simulator_unique_instance_id="{{hostname_ip_list[3]}}"
+
+   # - set_fact: unique_device_id_prefix="{{kafka_simulator_unique_instance_id}}{{parallel_seq_id}}"
+    - set_fact: simulator_auto_generated_jvm_opts=""
+
+    - block:
+      - name: "Copy typesafe config file {{producer_record.typesafe_config_file}} to {{producer_launch_config_dir}} if defined"
+        file: path="{{producer_launch_config_dir}}" state=directory owner="{{producer_client_user}}" group="{{producer_client_user}}"
+        become: yes
+      - name: "Template out to {{producer_launch_config_dir}}"
+        template: src="{{typesafe_config_path}}/{{item}}.j2" dest="{{producer_launch_config_dir}}/{{item}}"
+        with_items:
+          - "{{producer_record.typesafe_config_file}}"
+      - set_fact: simulator_auto_generated_jvm_opts="-Dconfig.file={{producer_launch_config_dir}}/{{producer_record.typesafe_config_file}}"
+      when:  producer_record.typesafe_config_file is defined
+
+
+    - block:
+
+      # debug sometimes  # sign not to be escaped again!!!
+      - debug: msg="{{ parallel_command }}"
+   #     when: break_escape_evaluation_to_debug_parallel_command is defined and break_escape_evaluation_to_debug_parallel_command
+
+      - file: path="{{producer_log_dir}}" state=directory owner="{{producer_client_user}}" group="{{producer_client_user}}"
+        become: yes
+
+      - set_fact: submit_outputfile_root="{{producer_log_dir}}/launch-{{producer_java_class}}"
+
+      - name: "random sleep if random_sleep_before_parallel_launch defined to avoid hitting resource"
+        shell: "sleep $((RANDOM % {{random_sleep_before_parallel_launch}}))"
+        when: random_sleep_before_parallel_launch is defined
+        ignore_errors: yes
+
+      - name: "Launch gnu parallel - run fire and forget background job so can return"
+        shell: "(nohup {{parallel_command}} 2>{{submit_outputfile_root}}.err 1>{{submit_outputfile_root}}.out)&"
+        register: submit_response
+      - debug: var=submit_response
+
+      # this no longer applies with the nohup
+      - debug: msg="Your error output will be in {{submit_outputfile_root}}.err"
+
+          # tail appears not to capture the entire text, only three lines
+          # redo in ansible 2.0
+      - shell: "cat {{submit_outputfile_root}}.err"
+        register: submit_error
+        ignore_errors: True
+      - debug: var=submit_error
+      when:  not((launch_producer_jvms is defined) and (launch_producer_jvms!="true"))
+

@@ -1,0 +1,5 @@
+jps_command: "/opt/jdk_latest/bin/jps"
+yarn_am_class_name: "org.apache.spark.deploy.yarn.ApplicationMaster"
+
+# minutes it takes for the producer to wrap up, stragglers...
+producer_winddown_delay_minutes: 1

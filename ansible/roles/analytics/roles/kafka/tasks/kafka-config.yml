@@ -1,0 +1,21 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+
+- name: "debug hostvars"
+  debug: var=hostvars
+
+# later try use the latest auto generation setting
+- name: "Use ip address the last segment {{inventory_hostname}} as unique broker id. Assumes ip address"
+  set_fact: kafka_broker_ip_list="{{inventory_hostname.split('.')}}"
+- set_fact: kafka_unique_broker_id="{{kafka_broker_ip_list[3]}}"
+- debug: var=kafka_unique_broker_id
+
+- name: "Template out kafka configuration files"
+  template: src=../templates/config/{{ item }}.j2 dest="{{kafka_config_dir}}/{{item}}" mode=0640 owner={{ kafka_user }}
+  with_items:
+    - server.properties
+    #- producer.properties
+    #- consumer.properties
+    #- log4j.properties
+
+# clean up log files here

@@ -1,0 +1,81 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+---
+- hosts: localhost
+  gather_facts: false
+  connection: local
+
+# to run locally:
+# ansible-playbook -i /dematic/gitazure/devops-config/ansible/roles/kafka/inventory/kafka-dev-cluster  -c local  machine-cluster-start.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+
+ # start machine instances based on cluster tag filter criteria. will wait if any of them are in stopped state.
+ # caller inputs:
+ # cluster_tag and cluster_name
+
+ # actual gcloud command is using something like:
+#  gcloud compute instances list --format='csv(status,name,id)' --filter='metadata.kafka-producer-id:dev'
+##
+  vars_files:
+    - "{{gcp_project_var_file}}"
+  vars:
+    # for anything bigger than 10 or smaller than tag, send in gce_cluster_size, ordered by name
+    gce_list_cmd: "{{gcloud_instances_command}} list --limit={{gce_max_cluster_limit}}"
+
+    machine_instanceid_cmd:  "{{gce_list_cmd}}  --format='csv(name)'  {{gcp_cluster_filter_parms}} "
+    machine_ipaddress_cmd:  "{{gce_list_cmd}}  --format='csv(INTERNAL_IP)'   {{gcp_cluster_filter_parms}}"
+    machine_status_cmd:  "{{gce_list_cmd}}  --format='csv(status,name,id)'  {{gcp_cluster_filter_parms}}"
+
+    # retries
+    ssh_wait_delay_seconds: 0
+    ssh_connect_timeout: 20
+    ssh_timeout_seconds: 400
+
+  tasks:
+    - debug: var=machine_status_cmd
+    # note if it was previously "stopping" state, it cannot start and we have to wait until it is in "stopped" state
+    - name: Make sure instance status not in stopping state, wait until it isn't
+      shell:  "{{machine_status_cmd}}"
+      register: machine_status_result
+      until: (machine_status_result.stdout.find("STOPPING") == -1)
+      retries: "30"
+      delay: "7"
+
+
+    - debug: msg="{{machine_instanceid_cmd}}"
+    - name: Get all  instance names with matching cluster id, remove first line which is title
+      shell: " {{machine_instanceid_cmd}} | {{flatten_lines_to_spaces_cmd}} "
+      register: result
+    - set_fact: instanceids="{{ result.stdout}}"
+
+    - name: Echo instance ids
+      debug: msg="{{ instanceids }}"
+
+    # see https://cloud.google.com/compute/docs/instances/checking-instance-status
+
+    - name: Update instance type id before start if specified by change_instance_type and instance_type
+      shell: "{{gcloud_instances_command}} set-machine-type {{item}} --machine-type  {{instance_type}} --zone {{gcp_zone}} "
+      with_items:  "{{instanceids.split(' ')}}"
+      ignore_errors: yes
+      when: change_instance_type is defined and change_instance_type=="true" and (machine_status_result.stdout.find("RUNNING") == -1)
+
+
+    - name: Start machine instances matching filter
+      shell: "{{gcloud_instances_command}} start --zone {{gcp_zone}} {{instanceids}}"
+      register: result
+    - debug: var=result
+
+    # in GCP, the gcloud start command returns when the ssh is ready.
+    # recently been getting a rash of timeouts
+    #
+
+    - name: get private IP addresses matching filter so we can wait to see SSH is up
+      shell: "{{machine_ipaddress_cmd}} | {{remove_first_title_line_cmd}}"
+      register: ip_result
+    - set_fact: private_addresses="{{ip_result.stdout_lines}}"
+    - debug: msg="{{private_addresses}}"
+
+    - pause: seconds=3
+    - name: Wait for SSH to come up
+      wait_for: host={{ item }} port=22 delay=0 connect_timeout={{ssh_connect_timeout}} timeout={{ssh_timeout_seconds}}  state=started
+      with_items: "{{private_addresses}}"
+      #when: (wait_for_ssh is defined) and (wait_for_ssh=="true")

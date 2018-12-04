@@ -1,0 +1,44 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+- name: "Install Kafka"
+  hosts: kafka
+  become: yes
+
+# initial configuration for kafka including install, creation of kafka user
+# to run locally:
+# ansible-playbook -i /dematic/gitlab/devops-config/ansible/roles/kafka/inventory/kafka-devops-cluster install-kafka-manager.yml --private-key /dematic/keys/google/gcp-devops -u kafka
+
+  tasks:
+
+    # we have to add this manually since I don't want to put this file at a higher dir level
+
+    - block:
+      - hostname: name="{{ inventory_hostname }}"
+      - set_fact: target_user={{kafka_user}}
+
+      - name: "create group"
+        group: name={{kafka_user}} state=present
+
+      - name: "create or update user with default bash shell"
+        user:  name={{kafka_user}} createhome=true groups={{target_user}} shell="/bin/bash"
+
+      - include: ../linux/tasks/create-user.yml
+      - name: "remove any old kafka installs in {{install_dir}}"
+        file: path={{install_dir}} state=absent
+        when: remove_all_previous_kakfa_installs
+      - file: path="{{install_dir}}" state=directory owner=kafka group=kafka
+      - name: "remove any same version kafka installs in {{install_dir}}/{{kafka_download_version}}"
+        file: path="{{install_dir}}/{{kafka_download_version}}" state=absent
+
+
+    - block:
+      - name: "download and unpack kafka dist from {{kafka_download_url}} to {{install_dir}}"
+        unarchive: src={{kafka_download_url}} dest={{install_dir}} copy=no creates=no owner=kafka
+         # above appear not to make owner recursively kafka and we cannot become kafka user since we started as ec2-user...
+      - file: path="{{install_dir}}" state=directory owner=kafka group=kafka recurse=true
+      - name: create symlink to /opt/kafka_latest
+
+        file: src="{{install_dir}}/{{kafka_download_version}}" dest=/opt/kafka_latest owner=kafka group=kafka state=link
+
+
+
+

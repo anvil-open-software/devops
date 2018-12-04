@@ -1,0 +1,48 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+# get final events processed between kafka and spark/yarn from the cassandra table
+# 1. signal_validation_producer_final_count = signal_validation.spark_count
+# 2. signal_validation_spark_final_count= signal_validation.spark_count
+
+
+# ansible-playbook -i /dematic/gitlab/devops-config/ansible/roles/validation/inventory/devops-ss-aggregation \
+#  get-cassandra-producer-counts.yml --private-key /dematic/keys/google/gcp-devops -u devops
+
+
+- name: "Get Cassandra signal_validation  producer counts"
+  hosts: cassandra-validator
+  run_once: true
+  vars:
+  tasks:
+    # we have to explicitly include this var filew hen this file is further included top level from validation
+    - include_vars: ../cassandra/group_vars/all
+
+    # need to execute statements like
+    # cqlsh 10.x.x.x -u spark -p password -k regr_customer
+    # --execute="SELECT spark_count from regr_customer.signal_validation where id='regr_CUMULATIVE_SIGNAL_METRICS' limit 1" | grep -Po '.* \K\d+\.*\d*'
+#select producer_count as total_count, producer_error_count as total_error_count from signal_validation;
+
+
+    - include: ../cassandra/tasks/execute-cql-stmt-numeric-result.yml
+      vars:
+        cql_query_failure_value: "-1"
+        cql_stmt: "select producer_count from signal_validation"
+    - set_fact: producer_final_count="{{table_select_numeric_result}}"
+    - debug: var=producer_final_count
+
+    - include: ../cassandra/tasks/execute-cql-stmt-numeric-result.yml
+      vars:
+        cql_stmt: "select producer_error_count from signal_validation"
+        cql_query_failure_value: "-1"
+    - set_fact: producer_error_count="{{table_select_numeric_result}}"
+    - debug: var=producer_error_count
+
+- name: "Store both final counts to localhost variables signal_validation_producer_final_count and signal_validation_spark_final_count "
+  hosts:  localhost
+  tasks:
+
+    - set_fact: signal_validation_producer_final_count="{{ hostvars[item]['producer_final_count'] }}"
+      with_inventory_hostnames: cassandra-validator
+    - set_fact: signal_validation_producer_error_count="{{ hostvars[item]['producer_error_count'] }}"
+      with_inventory_hostnames: cassandra-validator
+  tags:
+     - transfer_cassandra_counts_to_local_vars

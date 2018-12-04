@@ -1,0 +1,3 @@
+# Copyright 2018 Dematic, Corp.  # Licensed under the MIT Open Source License: https://opensource.org/licenses/MIT
+
+local_public_ssh_key_file: "/data/ansible/devops/.ssh/devops.pub"
